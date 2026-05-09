@@ -86,7 +86,7 @@ def main() -> int:
         "root": str(ROOT),
         "files": {},
         "production_blockers": [
-            "Provide data/md_inputs/receptors/7VSI_opm_oriented_clean.pdb from OPM/PPM/CHARMM-GUI orientation.",
+            "Run scripts/md_fetch_orient_sglt2.py to create the OPM-oriented 7VSI receptor and transformed ligand pose.",
             "Provide data/md_inputs/cofactors/heme.xml matching HEM in 4I8V_chainA_heme_prepared.pdb.",
             "Provide data/md_inputs/cofactors/fad.xml matching FAD in 2V5Z_chainA_fad_prepared.pdb.",
         ],
@@ -110,10 +110,15 @@ def main() -> int:
         "- CYP1B1 receptor with HEM retained\n"
         "- MAO-B receptor with FAD retained\n"
         "- SGLT2 unoriented reference receptor only\n\n"
-        "Still required before production runs:\n\n"
+        "Still required before all production runs:\n\n"
         "- `receptors/7VSI_opm_oriented_clean.pdb`\n"
+        "- `poses/Mol_13144_7VSI_opm_oriented_out.pdbqt`\n"
         "- `cofactors/heme.xml`\n"
-        "- `cofactors/fad.xml`\n",
+        "- `cofactors/fad.xml`\n\n"
+        "Create the SGLT2-oriented receptor and ligand pose with:\n\n"
+        "```bash\n"
+        "python scripts/md_fetch_orient_sglt2.py\n"
+        "```\n",
     )
     (DEST / "input_manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     print(json.dumps(manifest, indent=2))

@@ -5,7 +5,7 @@
 Use this machine for source edits, syntax checks, and dry-runs only. Do not start 100 ns production jobs here.
 
 ```bash
-python3 -m py_compile scripts/check_openmm_cuda.py scripts/md_prepare_inputs.py scripts/md_check_inputs.py scripts/md_production.py scripts/md_batch.py scripts/md_analyze_production.py
+python3 -m py_compile scripts/check_openmm_cuda.py scripts/md_prepare_inputs.py scripts/md_fetch_orient_sglt2.py scripts/md_check_inputs.py scripts/md_production.py scripts/md_batch.py scripts/md_analyze_production.py
 python3 scripts/md_prepare_inputs.py
 python3 scripts/md_check_inputs.py
 python3 scripts/md_production.py --config configs/md/production/sglt2_mol13144_100ns_rep1.toml --dry-run
@@ -43,10 +43,13 @@ Stage ignored inputs under `data/md_inputs/` on the GPU machine. If you have cop
 
 ```bash
 python scripts/md_prepare_inputs.py
+python scripts/md_fetch_orient_sglt2.py
 python scripts/md_check_inputs.py
 ```
 
-The preparer copies the local docking poses, SMILES table, CYP1B1 receptor with HEM retained, and MAO-B receptor with FAD retained. It does not fabricate membrane orientation or cofactor force-field XML files.
+The preparer copies the local docking poses, SMILES table, CYP1B1 receptor with HEM retained, MAO-B receptor with FAD retained, and the unoriented 7VSI reference. The SGLT2 orientation script downloads the OPM/EncoMPASS membrane-oriented 7VSI coordinates, keeps chain A, removes MAP17 and OPM dummy atoms, and applies the same rigid-body transform to the docked SGLT2 ligand pose. Neither script fabricates cofactor force-field XML files.
+
+The SGLT2 orientation script uses NumPy, so run it from the `anpdb-md` environment or another environment with NumPy installed.
 
 Final expected layout:
 
@@ -56,6 +59,7 @@ data/md_inputs/
   poses/
     Mol_11315_4I8V_out.pdbqt
     Mol_13144_7VSI_out.pdbqt
+    Mol_13144_7VSI_opm_oriented_out.pdbqt
     Mol_14056_2V5Z_out.pdbqt
   receptors/
     4I8V_chainA_heme_prepared.pdb
@@ -66,13 +70,24 @@ data/md_inputs/
     fad.xml
 ```
 
-The SGLT2 receptor should be membrane-oriented before use. The CYP1B1 and MAO-B receptor files should retain their cofactors, and the cofactor XML files should match the residue names present in those PDB files. For the current MAO-B structure, the retained flavin cofactor is FAD.
+The SGLT2 receptor and ligand pose must be in the same membrane-oriented coordinate frame before use. The CYP1B1 and MAO-B receptor files should retain their cofactors, and the cofactor XML files should match the residue names present in those PDB files. For the current MAO-B structure, the retained flavin cofactor is FAD.
 
 Check readiness at any time:
 
 ```bash
 python scripts/md_check_inputs.py
 ```
+
+## Cofactor Parameter Files
+
+The remaining CYP1B1 and MAO-B blockers are true parameterization inputs:
+
+```text
+data/md_inputs/cofactors/heme.xml
+data/md_inputs/cofactors/fad.xml
+```
+
+These should be generated from curated Amber/CHARMM-compatible cofactor parameterization, not from placeholder XML. For CYP1B1, use a heme model appropriate for the CYP450 heme environment and make sure the OpenMM ffxml defines a `HEM` residue template. For MAO-B, use oxidized FAD with the intended charge/protonation state documented and make sure the OpenMM ffxml defines a `FAD` residue template. After adding either file, rerun `python scripts/md_check_inputs.py`.
 
 ## Running
 
