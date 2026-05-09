@@ -1,0 +1,20 @@
+name: anpdb-md
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - openmm>=8.2
+  - pdbfixer
+  - openmmforcefields
+  - openff-toolkit
+  - openff-nagl
+  - openbabel
+  - rdkit
+  - mdtraj
+  - numpy
+  - pandas
+  - scipy
+  - pyyaml
+  - matplotlib
+  - seaborn
+  - pip

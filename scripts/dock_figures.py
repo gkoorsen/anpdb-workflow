@@ -1,4 +1,4 @@
-"""Generate publication figures for the docking validation results.
+"""Generate manuscript figures for the docking validation results.
 
 Reads output/docking/dock_results.tsv and produces:
 - fig_dock_boxplot.png         per-target affinity boxplot

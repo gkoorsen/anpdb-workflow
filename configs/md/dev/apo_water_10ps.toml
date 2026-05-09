@@ -1,0 +1,68 @@
+[project]
+root = "../../.."
+
+[production]
+require_production_ready = false
+
+[run]
+name = "dev_cyp1b1_apo_water_10ps"
+target = "CYP1B1"
+replicate = 0
+seed = 1000
+output_dir = "md_runs/dev/cyp1b1_apo_water_10ps"
+
+[input]
+compound_id = "Mol_11315"
+pdb = "4I8V"
+docking_mode = 1
+receptor_pdb = "output/docking/receptors/4I8V_clean.pdb"
+ligand_pdbqt = "output/docking/results/Mol_11315_4I8V_out.pdbqt"
+ligand_smiles_table = "output/anpdb_truly_novel_std.csv"
+ligand_id_column = "molecule_id"
+ligand_smiles_column = "std_smiles"
+
+[tools]
+obabel = "obabel"
+
+[ligand]
+pose_mode = "graft"
+charge_model = "openff-gnn-am1bcc-0.1.0-rc.3.pt"
+
+[forcefield]
+files = ["amber14-all.xml", "amber14/tip3p.xml"]
+
+[system]
+environment = "solvent"
+ph = 7.4
+water_model = "tip3p"
+padding_nm = 1.0
+ionic_strength_molar = 0.15
+positive_ion = "Na+"
+negative_ion = "Cl-"
+
+[system.cofactors]
+policy = "strip"
+strip_resnames = ["HEM", "HEME", "FAD"]
+parameter_files = []
+
+[platform]
+name = "CPU"
+
+[simulation]
+production_ns = 0.01
+timestep_fs = 2.0
+temperature_K = 310.0
+pressure_atm = 1.0
+friction_per_ps = 1.0
+nonbonded_cutoff_nm = 1.0
+hydrogen_mass_amu = 4.0
+minimization_max_iterations = 50
+
+[simulation.equilibration]
+nvt_ps = 1.0
+npt_ps = 1.0
+
+[output]
+trajectory_interval_ps = 1.0
+state_interval_ps = 1.0
+checkpoint_interval_ps = 5.0

@@ -1,4 +1,4 @@
-"""Generate publication figures for Bemis-Murcko scaffold analysis.
+"""Generate manuscript figures for Bemis-Murcko scaffold analysis.
 
 Reads precomputed CSVs from output/scaffolds/ and produces:
 - fig_scaffold_freq.png        top-20 most frequent scaffolds

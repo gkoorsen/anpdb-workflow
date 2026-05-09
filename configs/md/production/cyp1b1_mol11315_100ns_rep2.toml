@@ -1,0 +1,73 @@
+[project]
+root = "../../.."
+
+[production]
+require_production_ready = true
+
+[run]
+name = "cyp1b1_mol11315_100ns_rep2"
+target = "CYP1B1"
+replicate = 2
+seed = 113152
+output_dir = "md_runs/production/cyp1b1_mol11315/rep2"
+
+[input]
+compound_id = "Mol_11315"
+pdb = "4I8V"
+docking_mode = 1
+receptor_pdb = "data/md_inputs/receptors/4I8V_chainA_heme_prepared.pdb"
+ligand_pdbqt = "data/md_inputs/poses/Mol_11315_4I8V_out.pdbqt"
+ligand_smiles_table = "data/md_inputs/anpdb_truly_novel_std.csv"
+ligand_id_column = "molecule_id"
+ligand_smiles_column = "std_smiles"
+
+[tools]
+obabel = "obabel"
+
+[ligand]
+pose_mode = "graft"
+charge_model = "openff-gnn-am1bcc-0.1.0-rc.3.pt"
+
+[forcefield]
+files = ["amber14-all.xml", "amber14/tip3p.xml"]
+
+[system]
+environment = "solvent"
+ph = 7.4
+water_model = "tip3p"
+padding_nm = 1.0
+ionic_strength_molar = 0.15
+positive_ion = "Na+"
+negative_ion = "Cl-"
+
+[system.cofactors]
+policy = "require"
+strip_resnames = []
+parameter_files = ["data/md_inputs/cofactors/heme.xml"]
+
+[platform]
+name = "CUDA"
+device_index = "0"
+precision = "mixed"
+
+[simulation]
+production_ns = 100.0
+timestep_fs = 2.0
+temperature_K = 310.0
+pressure_atm = 1.0
+friction_per_ps = 1.0
+nonbonded_cutoff_nm = 1.0
+hydrogen_mass_amu = 4.0
+minimization_max_iterations = 5000
+
+[simulation.equilibration]
+nvt_ps = 250.0
+npt_ps = 1000.0
+
+[output]
+trajectory_interval_ps = 50.0
+state_interval_ps = 50.0
+checkpoint_interval_ps = 500.0
+
+[analysis]
+ligand_resname = "UNL"

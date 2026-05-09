@@ -1,4 +1,4 @@
-"""Generate ADME publication figures for the top-50 consensus compounds.
+"""Generate manuscript figures for the top-50 consensus compounds.
 
 Reads output/adme/adme_top50.csv and produces:
 - fig_boiled_egg.png     TPSA vs LogP scatter (BOILED-Egg regions)
