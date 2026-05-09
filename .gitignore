@@ -1,0 +1,57 @@
+# OS/editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Python caches and local environments
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+env/
+.env
+.env.*
+
+# R/session artifacts
+.Rhistory
+.RData
+
+# Node dependencies
+node_modules/
+ppt/node_modules/
+
+# Large external inputs and derived indexes.
+# Keep scripts and metadata in Git; stage source datasets elsewhere.
+data/*
+!data/README.md
+!data/.gitkeep
+
+# Generated analysis outputs.
+# Curated publication tables/figures should be copied into a tracked docs/ or results/ folder later.
+output/*
+!output/README.md
+!output/.gitkeep
+
+# Long MD/GROMACS/OpenMM production artifacts
+runs/
+md_runs/
+*.dcd
+*.xtc
+*.trr
+*.nc
+*.h5
+*.hdf5
+*.chk
+*.cpt
+*.edr
+*.tpr
+*.xvg
+*.log
+
+# Presentation/editor lock files
+~$*
