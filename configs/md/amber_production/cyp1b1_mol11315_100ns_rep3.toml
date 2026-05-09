@@ -13,8 +13,8 @@ compound_id = "Mol_11315"
 pdb = "4I8V"
 prmtop = "data/md_inputs/amber_systems/cyp1b1_mol11315.prmtop"
 inpcrd = "data/md_inputs/amber_systems/cyp1b1_mol11315.inpcrd"
-prepared_by = "curated AmberTools/MCPB.py heme workflow"
-preparation_notes = "Full solvated CYP1B1/Mol_11315 system with HEM and Cys457-Fe coordination handled during Amber preparation."
+prepared_by = "AmberTools ff14SB/GAFF2 with Shahrokh IC6 P450 heme parameters"
+preparation_notes = "Full solvated CYP1B1/Mol_11315 system with ferric penta-coordinate high-spin HEM, CYP457 SG-FE coordination, GAFF2/AM1-BCC ligand parameters, TIP3P water, and approximately 0.15 M NaCl."
 
 [platform]
 name = "CUDA"
@@ -44,4 +44,4 @@ state_interval_ps = 50.0
 checkpoint_interval_ps = 500.0
 
 [analysis]
-ligand_resname = "UNL"
+ligand_resname = "LIG"

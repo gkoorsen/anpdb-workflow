@@ -38,6 +38,7 @@ data/md_inputs/*
 !data/md_inputs/amber_systems/*.parm7
 !data/md_inputs/amber_systems/*.inpcrd
 !data/md_inputs/amber_systems/*.rst7
+data/md_inputs/amber_systems/*.pdb
 
 # Generated analysis outputs.
 # Curated summary tables/figures should be copied into a tracked docs/ or results/ folder later.

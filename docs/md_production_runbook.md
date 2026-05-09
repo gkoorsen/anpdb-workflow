@@ -65,12 +65,17 @@ data/md_inputs/
     4I8V_chainA_heme_prepared.pdb
     7VSI_opm_oriented_clean.pdb
     2V5Z_chainA_fad_prepared.pdb
+  amber_systems/
+    cyp1b1_mol11315.prmtop
+    cyp1b1_mol11315.inpcrd
+    maob_mol14056.prmtop
+    maob_mol14056.inpcrd
   cofactors/
     heme.xml
     fad.xml
 ```
 
-The SGLT2 receptor and ligand pose must be in the same membrane-oriented coordinate frame before use. The CYP1B1 and MAO-B receptor files should retain their cofactors, and the cofactor XML files should match the residue names present in those PDB files. For the current MAO-B structure, the retained flavin cofactor is FAD.
+The SGLT2 receptor and ligand pose must be in the same membrane-oriented coordinate frame before use. For CYP1B1 and MAO-B, prefer the Amber-prepared `amber_systems/` files. The `cofactors/` XML files are only needed if using the older OpenMM ffxml assembly configs under `configs/md/production/`.
 
 Check readiness at any time:
 
@@ -78,18 +83,19 @@ Check readiness at any time:
 python scripts/md_check_inputs.py
 ```
 
-## Cofactor Parameter Files
+## Cofactor Systems
 
-The remaining CYP1B1 and MAO-B blockers are true parameterization inputs:
+For CYP1B1 and MAO-B, the preferred route is full Amber-prepared systems instead of separate cofactor XML files. See `docs/cofactor_parameterization.md`.
 
-```text
-data/md_inputs/cofactors/heme.xml
-data/md_inputs/cofactors/fad.xml
+Generate the curated CYP1B1 Amber system locally from the repo root:
+
+```bash
+conda run -n Docking python scripts/md_build_amber_systems.py --target cyp1b1 --force
 ```
 
-These should be generated from curated Amber/CHARMM-compatible cofactor parameterization, not from placeholder XML. For CYP1B1, use a heme model appropriate for the CYP450 heme environment and make sure the OpenMM ffxml defines a `HEM` residue template. For MAO-B, use oxidized FAD with the intended charge/protonation state documented and make sure the OpenMM ffxml defines a `FAD` residue template. After adding either file, rerun `python scripts/md_check_inputs.py`.
+The current CYP1B1 system uses Amber ff14SB, GAFF2/AM1-BCC ligand parameters, Shahrokh IC6 P450 heme parameters, TIP3P water, and approximately 0.15 M NaCl.
 
-For CYP1B1 and MAO-B, the preferred route is now full Amber-prepared systems instead of separate cofactor XML files. See `docs/cofactor_parameterization.md`.
+The MAO-B Amber system remains blocked until a curated covalent 8alpha-S-cysteinyl-FAD parameter set, or a reviewed full-system CHARMM-GUI/AmberTools output, is available. The repo intentionally does not create a free-FAD placeholder for production work.
 
 Place curated Amber systems here:
 
@@ -122,7 +128,7 @@ Dry-run those configs:
 
 ```bash
 python scripts/md_check_amber_inputs.py
-python scripts/md_batch_amber.py configs/md/amber_production/*_rep1.toml --dry-run
+python scripts/md_production_amber.py --config configs/md/amber_production/cyp1b1_mol11315_100ns_rep1.toml --dry-run
 ```
 
 ## Running
@@ -157,10 +163,10 @@ Run all configs sequentially:
 python scripts/md_batch.py configs/md/production/*.toml --resume
 ```
 
-Run Amber-prepared CYP1B1 and MAO-B configs sequentially:
+Run ready Amber-prepared CYP1B1 configs sequentially:
 
 ```bash
-python scripts/md_batch_amber.py configs/md/amber_production/*.toml --resume
+python scripts/md_batch_amber.py configs/md/amber_production/cyp1b1_*.toml --resume
 ```
 
 ## Outputs
