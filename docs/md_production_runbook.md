@@ -151,28 +151,34 @@ python scripts/md_batch.py configs/md/production/*_rep1.toml --dry-run
 Run one replicate:
 
 ```bash
-python scripts/md_production.py --config configs/md/production/sglt2_mol13144_100ns_rep1.toml
+python scripts/md_production.py --config configs/md/production/sglt2_mol13144_100ns_rep1.toml --equilibrate-only
 ```
 
-Resume safely after interruption:
+Inspect `equilibrated.pdb` and `equilibration_manifest.json`, then start production from the saved `production.chk`:
 
 ```bash
 python scripts/md_production.py --config configs/md/production/sglt2_mol13144_100ns_rep1.toml --resume
 ```
 
-Run all first replicates sequentially on one GPU:
+Equilibrate all first replicates sequentially on one GPU:
 
 ```bash
-python scripts/md_batch.py configs/md/production/*_rep1.toml --resume
+python scripts/md_batch.py configs/md/production/sglt2_*_rep1.toml --equilibrate-only
 ```
 
-Run all configs sequentially:
+After inspection, run SGLT2 production sequentially:
 
 ```bash
-python scripts/md_batch.py configs/md/production/*.toml --resume
+python scripts/md_batch.py configs/md/production/sglt2_*.toml --resume
 ```
 
-Run ready Amber-prepared CYP1B1 and MAO-B configs sequentially:
+Equilibrate ready Amber-prepared CYP1B1 and MAO-B configs sequentially:
+
+```bash
+python scripts/md_batch_amber.py configs/md/amber_production/*.toml --equilibrate-only
+```
+
+After inspection, run Amber-prepared production sequentially:
 
 ```bash
 python scripts/md_batch_amber.py configs/md/amber_production/*.toml --resume
@@ -187,6 +193,8 @@ Each run writes to `md_runs/production/<target_compound>/repN/`, including:
 - `system_solvated.pdb`
 - `minimized.pdb`
 - `equilibrated.pdb`
+- `equilibrated_state.xml`
+- `equilibration_manifest.json`
 - `production.dcd`
 - `production.log`
 - `production.chk`

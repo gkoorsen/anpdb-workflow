@@ -6,6 +6,7 @@ methods.
 
 Typical usage:
   python scripts/md_production.py --config configs/md/production/sglt2_mol13144_100ns_rep1.toml
+  python scripts/md_production.py --config configs/md/production/sglt2_mol13144_100ns_rep1.toml --equilibrate-only
   python scripts/md_production.py --config configs/md/production/sglt2_mol13144_100ns_rep1.toml --resume
   python scripts/md_production.py --config configs/md/dev/apo_water_10ps.toml --allow-non-production
 """
@@ -494,7 +495,7 @@ def add_reporters(config: dict[str, Any], sim, run_dir: Path, append: bool, prod
     )
 
 
-def run_protocol(config: dict[str, Any], root: Path, paths: dict[str, Any], run_dir: Path, resume: bool) -> None:
+def run_protocol(config: dict[str, Any], root: Path, paths: dict[str, Any], run_dir: Path, resume: bool, equilibrate_only: bool) -> None:
     import openmm
     from openmm import unit
     from openmm.app import PDBFile
@@ -513,7 +514,7 @@ def run_protocol(config: dict[str, Any], root: Path, paths: dict[str, Any], run_
         production_start_step = int(production_plan["production_start_step"])
         production_final_step = int(production_plan["production_final_step"])
         sim.loadCheckpoint(str(checkpoint))
-        append = True
+        append = (run_dir / "production.dcd").exists() and (run_dir / "production.log").exists()
     else:
         min_iters = int(deep_get(config, "simulation.minimization_max_iterations", 5000))
         sim.minimizeEnergy(maxIterations=min_iters)
@@ -532,6 +533,7 @@ def run_protocol(config: dict[str, Any], root: Path, paths: dict[str, Any], run_
             sim.step(ps_to_steps(npt_ps, timestep_fs))
         state = sim.context.getState(getPositions=True, getVelocities=True)
         PDBFile.writeFile(sim.topology, state.getPositions(), (run_dir / "equilibrated.pdb").open("w"))
+        sim.saveState(str(run_dir / "equilibrated_state.xml"))
         production_start_step = int(sim.currentStep)
         production_final_step = production_start_step + production_steps
         write_json(
@@ -544,7 +546,36 @@ def run_protocol(config: dict[str, Any], root: Path, paths: dict[str, Any], run_
                 "timestep_fs": timestep_fs,
             },
         )
+        sim.saveCheckpoint(str(checkpoint))
+        write_json(
+            run_dir / "equilibration_manifest.json",
+            {
+                "completed_utc": datetime.now(timezone.utc).isoformat(),
+                "python": sys.version.split()[0],
+                "openmm": openmm.version.version,
+                "host_platform": py_platform.platform(),
+                "target": paths["target"],
+                "compound_id": paths["compound_id"],
+                "pdb": paths["pdb"],
+                "run_name": deep_get(config, "run.name"),
+                "replicate": deep_get(config, "run.replicate"),
+                "seed": deep_get(config, "run.seed"),
+                "platform": platform.getName(),
+                "platform_properties": properties,
+                "minimization_max_iterations": min_iters,
+                "nvt_ps": nvt_ps,
+                "npt_ps": npt_ps,
+                "timestep_fs": timestep_fs,
+                "production_start_step": production_start_step,
+                "production_checkpoint": str(checkpoint),
+                "next_command": "rerun this config with --resume to start production from production.chk",
+            },
+        )
         append = False
+
+    if equilibrate_only:
+        print(f"Equilibration complete. Resume production with --resume from {checkpoint}")
+        return
 
     add_reporters(config, sim, run_dir, append=append, production_final_step=production_final_step)
 
@@ -587,8 +618,11 @@ def main() -> int:
     parser.add_argument("--config", required=True, type=Path)
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--equilibrate-only", action="store_true", help="Run minimization/equilibration, write a production-start checkpoint, then stop.")
     parser.add_argument("--allow-non-production", action="store_true")
     args = parser.parse_args()
+    if args.equilibrate_only and args.resume:
+        fail("Use --equilibrate-only without --resume. After inspection, run production with --resume.")
 
     config_path = args.config.resolve()
     config = load_config(config_path)
@@ -604,6 +638,7 @@ def main() -> int:
         "run_dir": str(run_dir),
         "paths": {key: str(value) if isinstance(value, Path) else value for key, value in paths.items()},
         "production_ns": deep_get(config, "simulation.production_ns"),
+        "equilibrate_only": args.equilibrate_only,
         "platform": deep_get(config, "platform.name", "CUDA"),
     }
     if args.dry_run:
@@ -627,7 +662,7 @@ def main() -> int:
             "argv": sys.argv,
         },
     )
-    run_protocol(config, root, paths, run_dir, resume=args.resume)
+    run_protocol(config, root, paths, run_dir, resume=args.resume, equilibrate_only=args.equilibrate_only)
     print(f"Finished in {(time.time() - started) / 3600:.2f} h")
     return 0
 

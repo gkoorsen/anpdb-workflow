@@ -2,6 +2,7 @@
 
 Usage:
   python scripts/md_batch.py configs/md/production/*_rep1.toml --resume
+  python scripts/md_batch.py configs/md/production/sglt2_*_rep1.toml --equilibrate-only
   python scripts/md_batch.py configs/md/production/*.toml --dry-run
 """
 
@@ -18,8 +19,11 @@ def main() -> int:
     parser.add_argument("configs", nargs="+", type=Path)
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--equilibrate-only", action="store_true", help="Run each config through equilibration and stop before production.")
     parser.add_argument("--allow-non-production", action="store_true")
     args = parser.parse_args()
+    if args.equilibrate_only and args.resume:
+        parser.error("Use --equilibrate-only without --resume. After inspection, run production with --resume.")
 
     runner = Path(__file__).with_name("md_production.py")
     for config in args.configs:
@@ -28,6 +32,8 @@ def main() -> int:
             cmd.append("--resume")
         if args.dry_run:
             cmd.append("--dry-run")
+        if args.equilibrate_only:
+            cmd.append("--equilibrate-only")
         if args.allow_non_production:
             cmd.append("--allow-non-production")
         print("\n$ " + " ".join(cmd), flush=True)

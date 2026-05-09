@@ -55,11 +55,19 @@ python scripts/md_production_amber.py --config configs/md/amber_production/maob_
 Run one replicate:
 
 ```bash
-python scripts/md_production_amber.py --config configs/md/amber_production/cyp1b1_mol11315_100ns_rep1.toml
-python scripts/md_production_amber.py --config configs/md/amber_production/maob_mol14056_100ns_rep1.toml
+python scripts/md_production_amber.py --config configs/md/amber_production/cyp1b1_mol11315_100ns_rep1.toml --equilibrate-only
+python scripts/md_production_amber.py --config configs/md/amber_production/cyp1b1_mol11315_100ns_rep1.toml --resume
+python scripts/md_production_amber.py --config configs/md/amber_production/maob_mol14056_100ns_rep1.toml --equilibrate-only
+python scripts/md_production_amber.py --config configs/md/amber_production/maob_mol14056_100ns_rep1.toml --resume
 ```
 
-Run all ready Amber-prepared configs sequentially:
+Equilibrate all ready Amber-prepared configs sequentially:
+
+```bash
+python scripts/md_batch_amber.py configs/md/amber_production/*.toml --equilibrate-only
+```
+
+After inspecting the equilibrated structures and manifests, run production sequentially:
 
 ```bash
 python scripts/md_batch_amber.py configs/md/amber_production/*.toml --resume
