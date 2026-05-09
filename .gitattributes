@@ -1,0 +1,4 @@
+data/md_inputs/amber_systems/*.prmtop filter=lfs diff=lfs merge=lfs -text
+data/md_inputs/amber_systems/*.parm7 filter=lfs diff=lfs merge=lfs -text
+data/md_inputs/amber_systems/*.inpcrd filter=lfs diff=lfs merge=lfs -text
+data/md_inputs/amber_systems/*.rst7 filter=lfs diff=lfs merge=lfs -text

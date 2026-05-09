@@ -101,6 +101,23 @@ data/md_inputs/amber_systems/
   maob_mol14056.inpcrd
 ```
 
+These files are intentionally allowed into the repository through Git LFS. After generating or receiving the final curated systems, run:
+
+```bash
+git lfs install
+git add data/md_inputs/amber_systems/cyp1b1_mol11315.prmtop data/md_inputs/amber_systems/cyp1b1_mol11315.inpcrd
+git add data/md_inputs/amber_systems/maob_mol14056.prmtop data/md_inputs/amber_systems/maob_mol14056.inpcrd
+git commit -m "Add curated Amber MD input systems"
+git push
+```
+
+On the GPU machine, fetch the LFS payloads after cloning or pulling:
+
+```bash
+git lfs install
+git lfs pull
+```
+
 Dry-run those configs:
 
 ```bash

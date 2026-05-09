@@ -7,7 +7,7 @@ Current configs:
 - `CYP1B1 / Mol_11315`: expects heme and Cys457-Fe coordination in the prepared Amber system.
 - `MAO-B / Mol_14056`: expects oxidized FAD covalently patched to Cys397 in the prepared Amber system.
 
-Expected ignored input bundle:
+Expected Git LFS input bundle:
 
 ```text
 data/md_inputs/amber_systems/
@@ -15,6 +15,24 @@ data/md_inputs/amber_systems/
   cyp1b1_mol11315.inpcrd
   maob_mol14056.prmtop
   maob_mol14056.inpcrd
+```
+
+After generating those files, add and push them from the repo root:
+
+```bash
+git lfs install
+git add data/md_inputs/amber_systems/cyp1b1_mol11315.prmtop data/md_inputs/amber_systems/cyp1b1_mol11315.inpcrd
+git add data/md_inputs/amber_systems/maob_mol14056.prmtop data/md_inputs/amber_systems/maob_mol14056.inpcrd
+git commit -m "Add curated Amber MD input systems"
+git push
+```
+
+On the GPU machine:
+
+```bash
+git lfs install
+git pull
+git lfs pull
 ```
 
 Dry-run first replicates:

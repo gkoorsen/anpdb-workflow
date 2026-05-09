@@ -33,7 +33,14 @@ Recommended preparation:
    data/md_inputs/amber_systems/cyp1b1_mol11315.inpcrd
    ```
 
-6. Dry-run the Amber runner:
+6. Add them with Git LFS:
+
+   ```bash
+   git lfs install
+   git add data/md_inputs/amber_systems/cyp1b1_mol11315.prmtop data/md_inputs/amber_systems/cyp1b1_mol11315.inpcrd
+   ```
+
+7. Dry-run the Amber runner:
 
    ```bash
    python scripts/md_check_amber_inputs.py
@@ -64,7 +71,14 @@ Recommended preparation:
    data/md_inputs/amber_systems/maob_mol14056.inpcrd
    ```
 
-5. Dry-run the Amber runner:
+5. Add them with Git LFS:
+
+   ```bash
+   git lfs install
+   git add data/md_inputs/amber_systems/maob_mol14056.prmtop data/md_inputs/amber_systems/maob_mol14056.inpcrd
+   ```
+
+6. Dry-run the Amber runner:
 
    ```bash
    python scripts/md_check_amber_inputs.py

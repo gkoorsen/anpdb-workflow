@@ -27,3 +27,4 @@ See `docs/repo_bootstrap.md` for GitHub and WSL setup notes.
 
 See `docs/md_production_runbook.md` for production MD setup, GPU checks, input staging, run commands, resume behavior, and analysis.
 For CYP1B1 heme and MAO-B covalent FAD preparation, see `docs/cofactor_parameterization.md`; the repo supports running curated Amber `prmtop/inpcrd` systems directly through OpenMM.
+Curated Amber production inputs under `data/md_inputs/amber_systems/` are tracked with Git LFS.

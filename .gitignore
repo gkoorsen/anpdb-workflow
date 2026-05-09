@@ -30,6 +30,14 @@ ppt/node_modules/
 data/*
 !data/README.md
 !data/.gitkeep
+!data/md_inputs/
+data/md_inputs/*
+!data/md_inputs/amber_systems/
+!data/md_inputs/amber_systems/.gitkeep
+!data/md_inputs/amber_systems/*.prmtop
+!data/md_inputs/amber_systems/*.parm7
+!data/md_inputs/amber_systems/*.inpcrd
+!data/md_inputs/amber_systems/*.rst7
 
 # Generated analysis outputs.
 # Curated summary tables/figures should be copied into a tracked docs/ or results/ folder later.
