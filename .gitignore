@@ -39,6 +39,13 @@ data/md_inputs/*
 !data/md_inputs/amber_systems/*.inpcrd
 !data/md_inputs/amber_systems/*.rst7
 data/md_inputs/amber_systems/*.pdb
+!data/md_inputs/cofactors/
+data/md_inputs/cofactors/*
+!data/md_inputs/cofactors/amber/
+!data/md_inputs/cofactors/amber/.gitkeep
+!data/md_inputs/cofactors/amber/*.mol2
+!data/md_inputs/cofactors/amber/*.frcmod
+!data/md_inputs/cofactors/amber/*.json
 
 # Generated analysis outputs.
 # Curated summary tables/figures should be copied into a tracked docs/ or results/ folder later.

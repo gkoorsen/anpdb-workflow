@@ -1,0 +1,23 @@
+{
+  "atoms": 97,
+  "bonds": 102,
+  "charge_model": "AmberTools antechamber GAFF2 AM1-BCC on capped Cys-FAD model",
+  "description": "Cys397 covalently linked to oxidized FAD through SG-C8M thioether",
+  "protein_typed_atoms": [
+    "C",
+    "CA",
+    "CB",
+    "H3",
+    "H4",
+    "H5",
+    "HN",
+    "N",
+    "O",
+    "SG"
+  ],
+  "raw_stripped_charge": -2.027001,
+  "residue": "CYF",
+  "stripped_cap_charge": 0.034998999999999954,
+  "target_residue_charge": -2.0,
+  "uniform_charge_correction_per_atom": 0.0002783608247422663
+}

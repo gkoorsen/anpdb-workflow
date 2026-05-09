@@ -71,11 +71,13 @@ data/md_inputs/
     maob_mol14056.prmtop
     maob_mol14056.inpcrd
   cofactors/
-    heme.xml
-    fad.xml
+    amber/
+      CYF_cys397_fad.mol2
+      CYF_cys397_fad.frcmod
+      CYF_cys397_fad_manifest.json
 ```
 
-The SGLT2 receptor and ligand pose must be in the same membrane-oriented coordinate frame before use. For CYP1B1 and MAO-B, prefer the Amber-prepared `amber_systems/` files. The `cofactors/` XML files are only needed if using the older OpenMM ffxml assembly configs under `configs/md/production/`.
+The SGLT2 receptor and ligand pose must be in the same membrane-oriented coordinate frame before use. For CYP1B1 and MAO-B, prefer the Amber-prepared `amber_systems/` files. `cofactors/heme.xml` and `cofactors/fad.xml` are only needed if using the older OpenMM ffxml assembly configs under `configs/md/production/`.
 
 Check readiness at any time:
 
@@ -95,7 +97,13 @@ conda run -n Docking python scripts/md_build_amber_systems.py --target cyp1b1 --
 
 The current CYP1B1 system uses Amber ff14SB, GAFF2/AM1-BCC ligand parameters, Shahrokh IC6 P450 heme parameters, TIP3P water, and approximately 0.15 M NaCl.
 
-The MAO-B Amber system remains blocked until a curated covalent 8alpha-S-cysteinyl-FAD parameter set, or a reviewed full-system CHARMM-GUI/AmberTools output, is available. The repo intentionally does not create a free-FAD placeholder for production work.
+Generate the curated MAO-B Amber system locally from the repo root:
+
+```bash
+conda run -n Docking python scripts/md_build_amber_systems.py --target maob --force
+```
+
+The current MAO-B system uses Amber ff14SB, GAFF2/AM1-BCC ligand parameters, a tracked CYF Cys397-FAD residue generated from a capped AM1-BCC model, TIP3P water, and approximately 0.15 M NaCl. The repo intentionally does not create a free-FAD placeholder for production work.
 
 Place curated Amber systems here:
 
@@ -129,6 +137,7 @@ Dry-run those configs:
 ```bash
 python scripts/md_check_amber_inputs.py
 python scripts/md_production_amber.py --config configs/md/amber_production/cyp1b1_mol11315_100ns_rep1.toml --dry-run
+python scripts/md_production_amber.py --config configs/md/amber_production/maob_mol14056_100ns_rep1.toml --dry-run
 ```
 
 ## Running
@@ -163,10 +172,10 @@ Run all configs sequentially:
 python scripts/md_batch.py configs/md/production/*.toml --resume
 ```
 
-Run ready Amber-prepared CYP1B1 configs sequentially:
+Run ready Amber-prepared CYP1B1 and MAO-B configs sequentially:
 
 ```bash
-python scripts/md_batch_amber.py configs/md/amber_production/cyp1b1_*.toml --resume
+python scripts/md_batch_amber.py configs/md/amber_production/*.toml --resume
 ```
 
 ## Outputs

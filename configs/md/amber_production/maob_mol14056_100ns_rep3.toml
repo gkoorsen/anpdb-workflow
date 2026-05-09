@@ -13,8 +13,8 @@ compound_id = "Mol_14056"
 pdb = "2V5Z"
 prmtop = "data/md_inputs/amber_systems/maob_mol14056.prmtop"
 inpcrd = "data/md_inputs/amber_systems/maob_mol14056.inpcrd"
-prepared_by = "curated Amber/CHARMM covalent FAD workflow"
-preparation_notes = "Full solvated MAO-B/Mol_14056 system with oxidized FAD covalently patched to Cys397 during preparation."
+prepared_by = "AmberTools ff14SB/GAFF2 with CYF Cys397-FAD AM1-BCC parameters"
+preparation_notes = "Full solvated MAO-B/Mol_14056 system with oxidized FAD covalently linked to Cys397 through CYF SG-C8M thioether, GAFF2/AM1-BCC ligand parameters, TIP3P water, and approximately 0.15 M NaCl."
 
 [platform]
 name = "CUDA"
