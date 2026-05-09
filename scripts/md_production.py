@@ -22,6 +22,7 @@ import subprocess
 import sys
 import time
 import tomllib
+import xml.etree.ElementTree as ET
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -30,16 +31,19 @@ from typing import Any
 PRODUCTION_GATES = {
     "CYP1B1": {
         "required_heterogens": {"HEM"},
+        "expected_cofactor_residues": {"HEM"},
         "requires_membrane": False,
         "note": "CYP1B1 production runs should retain and parameterise heme.",
     },
     "MAO-B": {
         "required_heterogens": {"FAD"},
+        "expected_cofactor_residues": {"FAD"},
         "requires_membrane": False,
         "note": "MAO-B production runs should retain and parameterise FAD.",
     },
     "SGLT2": {
         "required_heterogens": set(),
+        "expected_cofactor_residues": set(),
         "requires_membrane": True,
         "note": "SGLT2 production runs should use a membrane-oriented structure and lipid bilayer.",
     },
@@ -112,6 +116,15 @@ def read_resnames(pdb_path: Path) -> set[str]:
             if line.startswith(("ATOM", "HETATM")):
                 resnames.add(line[17:20].strip())
     return resnames
+
+
+def ffxml_residue_names(path: Path) -> set[str]:
+    tree = ET.parse(path)
+    names: set[str] = set()
+    for elem in tree.getroot().iter():
+        if elem.tag.rsplit("}", 1)[-1] == "Residue" and "name" in elem.attrib:
+            names.add(elem.attrib["name"])
+    return names
 
 
 def validate_production_gates(config: dict[str, Any], receptor_pdb: Path | None, allow_non_production: bool) -> None:
@@ -210,13 +223,39 @@ def check_input_paths(config: dict[str, Any], root: Path, paths: dict[str, Any])
         if isinstance(path, Path) and not path.exists():
             missing.append(str(path))
 
+    target = str(require(config, "run.target"))
+    gate = PRODUCTION_GATES.get(target, {})
+    expected_cofactor_residues = set(gate.get("expected_cofactor_residues", set()))
+    cofactor_residues: set[str] = set()
+
     for path_value in deep_get(config, "system.cofactors.parameter_files", []) or []:
         path = resolve_path(root, path_value)
         if path is not None and not path.exists():
             missing.append(str(path))
+        elif path is not None:
+            try:
+                cofactor_residues.update(ffxml_residue_names(path))
+            except Exception as exc:
+                missing.append(f"{path} is not a parseable OpenMM ffxml file: {exc}")
+
+    if expected_cofactor_residues:
+        missing_residues = expected_cofactor_residues - cofactor_residues
+        if missing_residues:
+            missing.append(
+                "cofactor XML files do not define expected residue templates: "
+                + ", ".join(sorted(missing_residues))
+            )
 
     if missing:
-        fail("Missing required input files:\n" + "\n".join(f"- {path}" for path in missing))
+        fail("Input readiness checks failed:\n" + "\n".join(f"- {path}" for path in missing))
+
+
+def collect_input_issues(config: dict[str, Any], root: Path, paths: dict[str, Any]) -> list[str]:
+    try:
+        check_input_paths(config, root, paths)
+    except SystemExit as exc:
+        return [line.removeprefix("- ") for line in str(exc).splitlines()[1:]]
+    return []
 
 
 def extract_pdbqt_model(pdbqt_path: Path, mode: int, out_pdbqt: Path) -> None:
@@ -568,6 +607,9 @@ def main() -> int:
         "platform": deep_get(config, "platform.name", "CUDA"),
     }
     if args.dry_run:
+        input_issues = collect_input_issues(config, root, paths)
+        plan["input_ready"] = not input_issues
+        plan["input_issues"] = input_issues
         print(json.dumps(plan, indent=2))
         return 0
 

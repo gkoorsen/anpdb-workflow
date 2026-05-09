@@ -8,7 +8,14 @@ These configs define three 100 ns replicates for each current top lead:
 
 They are intentionally guarded. Production configs expect an ignored local input bundle under `data/md_inputs/` and will fail before running if required receptors, ligand poses, SMILES, or cofactor parameter files are missing.
 
-Expected ignored input bundle:
+You can stage the easy local inputs from existing `output/` files with:
+
+```bash
+python scripts/md_prepare_inputs.py
+python scripts/md_check_inputs.py
+```
+
+Final expected ignored input bundle:
 
 ```text
 data/md_inputs/
@@ -25,6 +32,8 @@ data/md_inputs/
     heme.xml
     fad.xml
 ```
+
+For the current MAO-B structure, the retained flavin cofactor is FAD. If a future MAO target uses FMN instead, create a separate receptor/config pair and update the expected residue and parameter file accordingly.
 
 Run one config:
 

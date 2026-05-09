@@ -5,7 +5,9 @@
 Use this machine for source edits, syntax checks, and dry-runs only. Do not start 100 ns production jobs here.
 
 ```bash
-python3 -m py_compile scripts/check_openmm_cuda.py scripts/md_production.py scripts/md_batch.py scripts/md_analyze_production.py
+python3 -m py_compile scripts/check_openmm_cuda.py scripts/md_prepare_inputs.py scripts/md_check_inputs.py scripts/md_production.py scripts/md_batch.py scripts/md_analyze_production.py
+python3 scripts/md_prepare_inputs.py
+python3 scripts/md_check_inputs.py
 python3 scripts/md_production.py --config configs/md/production/sglt2_mol13144_100ns_rep1.toml --dry-run
 python3 scripts/md_batch.py configs/md/production/*_rep1.toml --dry-run
 ```
@@ -37,7 +39,16 @@ If CUDA is unavailable, fix the NVIDIA driver/WSL/CUDA/OpenMM stack before runni
 
 ## Input Bundle
 
-Stage ignored inputs under `data/md_inputs/` on the GPU machine:
+Stage ignored inputs under `data/md_inputs/` on the GPU machine. If you have copied the current local `output/` and `data/` folders onto that machine, start with:
+
+```bash
+python scripts/md_prepare_inputs.py
+python scripts/md_check_inputs.py
+```
+
+The preparer copies the local docking poses, SMILES table, CYP1B1 receptor with HEM retained, and MAO-B receptor with FAD retained. It does not fabricate membrane orientation or cofactor force-field XML files.
+
+Final expected layout:
 
 ```text
 data/md_inputs/
@@ -55,7 +66,13 @@ data/md_inputs/
     fad.xml
 ```
 
-The SGLT2 receptor should be membrane-oriented before use. The CYP1B1 and MAO-B receptor files should retain their cofactors, and the cofactor XML files should match the residue names present in those PDB files.
+The SGLT2 receptor should be membrane-oriented before use. The CYP1B1 and MAO-B receptor files should retain their cofactors, and the cofactor XML files should match the residue names present in those PDB files. For the current MAO-B structure, the retained flavin cofactor is FAD.
+
+Check readiness at any time:
+
+```bash
+python scripts/md_check_inputs.py
+```
 
 ## Running
 
