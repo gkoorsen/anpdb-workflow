@@ -1,0 +1,47 @@
+[project]
+root = "../../.."
+
+[run]
+name = "cyp1b1_mol11315_amber_100ns_rep2"
+target = "CYP1B1"
+replicate = 2
+seed = 113152
+output_dir = "md_runs/production/cyp1b1_mol11315_amber/rep2"
+
+[input]
+compound_id = "Mol_11315"
+pdb = "4I8V"
+prmtop = "data/md_inputs/amber_systems/cyp1b1_mol11315.prmtop"
+inpcrd = "data/md_inputs/amber_systems/cyp1b1_mol11315.inpcrd"
+prepared_by = "curated AmberTools/MCPB.py heme workflow"
+preparation_notes = "Full solvated CYP1B1/Mol_11315 system with HEM and Cys457-Fe coordination handled during Amber preparation."
+
+[platform]
+name = "CUDA"
+device_index = "0"
+precision = "mixed"
+
+[simulation]
+production_ns = 100.0
+timestep_fs = 2.0
+temperature_K = 310.0
+pressure_atm = 1.0
+friction_per_ps = 1.0
+nonbonded_cutoff_nm = 1.0
+hydrogen_mass_amu = 4.0
+remove_cm_motion = false
+add_barostat = true
+barostat_interval_steps = 25
+minimization_max_iterations = 5000
+
+[simulation.equilibration]
+nvt_ps = 250.0
+npt_ps = 1000.0
+
+[output]
+trajectory_interval_ps = 50.0
+state_interval_ps = 50.0
+checkpoint_interval_ps = 500.0
+
+[analysis]
+ligand_resname = "UNL"

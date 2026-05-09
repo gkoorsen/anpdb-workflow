@@ -78,7 +78,7 @@ def main() -> int:
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
 
-    for subdir in ("poses", "receptors", "cofactors"):
+    for subdir in ("poses", "receptors", "cofactors", "amber_systems"):
         (DEST / subdir).mkdir(parents=True, exist_ok=True)
 
     manifest: dict[str, object] = {
@@ -114,7 +114,8 @@ def main() -> int:
         "- `receptors/7VSI_opm_oriented_clean.pdb`\n"
         "- `poses/Mol_13144_7VSI_opm_oriented_out.pdbqt`\n"
         "- `cofactors/heme.xml`\n"
-        "- `cofactors/fad.xml`\n\n"
+        "- `cofactors/fad.xml`\n"
+        "- or curated Amber systems under `amber_systems/` for CYP1B1 and MAO-B\n\n"
         "Create the SGLT2-oriented receptor and ligand pose with:\n\n"
         "```bash\n"
         "python scripts/md_fetch_orient_sglt2.py\n"

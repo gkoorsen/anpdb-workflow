@@ -1,0 +1,47 @@
+[project]
+root = "../../.."
+
+[run]
+name = "maob_mol14056_amber_100ns_rep2"
+target = "MAO-B"
+replicate = 2
+seed = 140562
+output_dir = "md_runs/production/maob_mol14056_amber/rep2"
+
+[input]
+compound_id = "Mol_14056"
+pdb = "2V5Z"
+prmtop = "data/md_inputs/amber_systems/maob_mol14056.prmtop"
+inpcrd = "data/md_inputs/amber_systems/maob_mol14056.inpcrd"
+prepared_by = "curated Amber/CHARMM covalent FAD workflow"
+preparation_notes = "Full solvated MAO-B/Mol_14056 system with oxidized FAD covalently patched to Cys397 during preparation."
+
+[platform]
+name = "CUDA"
+device_index = "0"
+precision = "mixed"
+
+[simulation]
+production_ns = 100.0
+timestep_fs = 2.0
+temperature_K = 310.0
+pressure_atm = 1.0
+friction_per_ps = 1.0
+nonbonded_cutoff_nm = 1.0
+hydrogen_mass_amu = 4.0
+remove_cm_motion = false
+add_barostat = true
+barostat_interval_steps = 25
+minimization_max_iterations = 5000
+
+[simulation.equilibration]
+nvt_ps = 250.0
+npt_ps = 1000.0
+
+[output]
+trajectory_interval_ps = 50.0
+state_interval_ps = 50.0
+checkpoint_interval_ps = 500.0
+
+[analysis]
+ligand_resname = "UNL"

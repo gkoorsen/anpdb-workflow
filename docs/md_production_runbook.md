@@ -5,7 +5,7 @@
 Use this machine for source edits, syntax checks, and dry-runs only. Do not start 100 ns production jobs here.
 
 ```bash
-python3 -m py_compile scripts/check_openmm_cuda.py scripts/md_prepare_inputs.py scripts/md_fetch_orient_sglt2.py scripts/md_check_inputs.py scripts/md_production.py scripts/md_batch.py scripts/md_analyze_production.py
+python3 -m py_compile scripts/check_openmm_cuda.py scripts/md_prepare_inputs.py scripts/md_fetch_orient_sglt2.py scripts/md_check_inputs.py scripts/md_check_amber_inputs.py scripts/md_production.py scripts/md_production_amber.py scripts/md_batch.py scripts/md_batch_amber.py scripts/md_analyze_production.py
 python3 scripts/md_prepare_inputs.py
 python3 scripts/md_check_inputs.py
 python3 scripts/md_production.py --config configs/md/production/sglt2_mol13144_100ns_rep1.toml --dry-run
@@ -89,6 +89,25 @@ data/md_inputs/cofactors/fad.xml
 
 These should be generated from curated Amber/CHARMM-compatible cofactor parameterization, not from placeholder XML. For CYP1B1, use a heme model appropriate for the CYP450 heme environment and make sure the OpenMM ffxml defines a `HEM` residue template. For MAO-B, use oxidized FAD with the intended charge/protonation state documented and make sure the OpenMM ffxml defines a `FAD` residue template. After adding either file, rerun `python scripts/md_check_inputs.py`.
 
+For CYP1B1 and MAO-B, the preferred route is now full Amber-prepared systems instead of separate cofactor XML files. See `docs/cofactor_parameterization.md`.
+
+Place curated Amber systems here:
+
+```text
+data/md_inputs/amber_systems/
+  cyp1b1_mol11315.prmtop
+  cyp1b1_mol11315.inpcrd
+  maob_mol14056.prmtop
+  maob_mol14056.inpcrd
+```
+
+Dry-run those configs:
+
+```bash
+python scripts/md_check_amber_inputs.py
+python scripts/md_batch_amber.py configs/md/amber_production/*_rep1.toml --dry-run
+```
+
 ## Running
 
 Dry-run the production plan:
@@ -119,6 +138,12 @@ Run all configs sequentially:
 
 ```bash
 python scripts/md_batch.py configs/md/production/*.toml --resume
+```
+
+Run Amber-prepared CYP1B1 and MAO-B configs sequentially:
+
+```bash
+python scripts/md_batch_amber.py configs/md/amber_production/*.toml --resume
 ```
 
 ## Outputs

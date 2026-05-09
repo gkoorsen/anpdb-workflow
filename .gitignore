@@ -32,7 +32,7 @@ data/*
 !data/.gitkeep
 
 # Generated analysis outputs.
-# Curated publication tables/figures should be copied into a tracked docs/ or results/ folder later.
+# Curated summary tables/figures should be copied into a tracked docs/ or results/ folder later.
 output/*
 !output/README.md
 !output/.gitkeep
