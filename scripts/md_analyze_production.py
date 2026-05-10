@@ -56,6 +56,17 @@ def ligand_indices(topology, ligand_resname: str | None) -> np.ndarray:
     )
 
 
+def trajectory_times_ns(run_dir: Path, traj) -> np.ndarray:
+    state_log = run_dir / "production.log"
+    if state_log.exists():
+        log_df = pd.read_csv(state_log)
+        log_df.columns = [str(column).lstrip("#").strip().strip('"') for column in log_df.columns]
+        if "Time (ps)" in log_df.columns and len(log_df) == traj.n_frames:
+            times_ps = log_df["Time (ps)"].to_numpy(dtype=float)
+            return (times_ps - times_ps[0]) / 1000.0
+    return traj.time / 1000.0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-dir", required=True, type=Path)
@@ -81,7 +92,7 @@ def main() -> int:
         raise SystemExit("No protein backbone atoms found.")
 
     traj.superpose(traj, frame=0, atom_indices=protein_backbone)
-    times_ns = traj.time / 1000.0
+    times_ns = trajectory_times_ns(run_dir, traj)
     backbone_rmsd = md.rmsd(traj, traj, frame=0, atom_indices=protein_backbone) * 10.0
 
     lig_idx = ligand_indices(top, args.ligand_resname)

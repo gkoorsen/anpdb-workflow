@@ -30,6 +30,10 @@ def fail(message: str) -> None:
     raise SystemExit(message)
 
 
+def log_status(message: str) -> None:
+    print(message, flush=True)
+
+
 def load_config(path: Path) -> dict[str, Any]:
     if path.suffix.lower() == ".toml":
         with path.open("rb") as handle:
@@ -213,7 +217,10 @@ def run_protocol(config: dict[str, Any], paths: dict[str, Any], run_dir: Path, r
     from openmm import unit
     from openmm.app import PDBFile
 
+    log_status(f"Starting Amber MD in {run_dir}")
+    log_status(f"Loading inputs: prmtop={paths['prmtop']} inpcrd={paths['inpcrd']}")
     sim, platform, properties = build_simulation(config, paths)
+    log_status(f"Simulation created on platform={platform.getName()} properties={properties}")
     timestep_fs = float(deep_get(config, "simulation.timestep_fs", 2.0))
     production_steps = ns_to_steps(float(deep_get(config, "simulation.production_ns", 100.0)), timestep_fs)
 
@@ -221,6 +228,7 @@ def run_protocol(config: dict[str, Any], paths: dict[str, Any], run_dir: Path, r
     production_plan_path = run_dir / "production_plan.json"
     resumed = resume and checkpoint.exists()
     if resumed:
+        log_status(f"Resuming from checkpoint {checkpoint}")
         if not production_plan_path.exists():
             fail(f"Cannot resume without {production_plan_path}")
         production_plan = json.loads(production_plan_path.read_text())
@@ -231,23 +239,32 @@ def run_protocol(config: dict[str, Any], paths: dict[str, Any], run_dir: Path, r
     else:
         min_iters = int(deep_get(config, "simulation.minimization_max_iterations", 5000))
         if min_iters > 0:
+            log_status(f"Starting energy minimization for up to {min_iters} iterations")
             sim.minimizeEnergy(maxIterations=min_iters)
+            log_status("Energy minimization complete")
         state = sim.context.getState(getPositions=True)
         PDBFile.writeFile(sim.topology, state.getPositions(), (run_dir / "minimized.pdb").open("w"))
+        log_status(f"Wrote minimized structure to {run_dir / 'minimized.pdb'}")
 
         sim.context.setVelocitiesToTemperature(
             float(deep_get(config, "simulation.temperature_K", 310.0)) * unit.kelvin,
             int(deep_get(config, "run.seed", 1)),
         )
+        log_status("Assigned initial velocities")
         nvt_ps = float(deep_get(config, "simulation.equilibration.nvt_ps", 250.0))
         npt_ps = float(deep_get(config, "simulation.equilibration.npt_ps", 1000.0))
         if nvt_ps > 0:
+            log_status(f"Starting NVT equilibration for {nvt_ps:.1f} ps")
             sim.step(ps_to_steps(nvt_ps, timestep_fs))
+            log_status("NVT equilibration complete")
         if npt_ps > 0:
+            log_status(f"Starting NPT equilibration for {npt_ps:.1f} ps")
             sim.step(ps_to_steps(npt_ps, timestep_fs))
+            log_status("NPT equilibration complete")
         state = sim.context.getState(getPositions=True, getVelocities=True)
         PDBFile.writeFile(sim.topology, state.getPositions(), (run_dir / "equilibrated.pdb").open("w"))
         sim.saveState(str(run_dir / "equilibrated_state.xml"))
+        log_status(f"Wrote equilibrated structure to {run_dir / 'equilibrated.pdb'}")
         production_start_step = int(sim.currentStep)
         production_final_step = production_start_step + production_steps
         write_json(
@@ -261,6 +278,7 @@ def run_protocol(config: dict[str, Any], paths: dict[str, Any], run_dir: Path, r
             },
         )
         sim.saveCheckpoint(str(checkpoint))
+        log_status(f"Saved production checkpoint to {checkpoint}")
         write_json(
             run_dir / "equilibration_manifest.json",
             {
@@ -293,20 +311,23 @@ def run_protocol(config: dict[str, Any], paths: dict[str, Any], run_dir: Path, r
         append = False
 
     if equilibrate_only:
-        print(f"Equilibration complete. Resume production with --resume from {checkpoint}")
+        log_status(f"Equilibration complete. Resume production with --resume from {checkpoint}")
         return
 
     add_reporters(config, sim, run_dir, append=append, production_final_step=production_final_step)
+    log_status(f"Production reporters attached. Starting production from step {int(sim.currentStep)} to {production_final_step}")
 
     remaining = production_final_step - int(sim.currentStep)
     if remaining <= 0:
         print("Production already complete according to checkpoint.", file=sys.stderr)
     else:
+        log_status(f"Running production for {remaining} steps")
         sim.step(remaining)
 
     state = sim.context.getState(getPositions=True, getVelocities=True)
     PDBFile.writeFile(sim.topology, state.getPositions(), (run_dir / "final.pdb").open("w"))
     sim.saveState(str(run_dir / "final_state.xml"))
+    log_status(f"Wrote final structure to {run_dir / 'final.pdb'}")
 
     write_json(
         run_dir / "run_manifest.json",
