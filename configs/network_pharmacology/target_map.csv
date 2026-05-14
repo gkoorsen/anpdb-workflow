@@ -1,0 +1,4 @@
+uniprot,symbol,name,include_in_network
+Q16678,CYP1B1,Cytochrome P450 1B1,1
+P31639,SLC5A2,Sodium/glucose cotransporter 2,1
+P27338,MAOB,Monoamine oxidase B,1

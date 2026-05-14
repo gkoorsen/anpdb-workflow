@@ -1,0 +1,4 @@
+hypothesis,disease_name,disease_id,lead_target_symbol,lead_target_uniprot,top_disease_targets,min_open_targets_score,string_required_score,string_add_nodes,random_iterations
+cyp1b1_glaucoma,glaucoma,MONDO_0005041,CYP1B1,Q16678,300,0.05,700,0,1000
+sglt2_t2d,type 2 diabetes mellitus,MONDO_0005148,SLC5A2,P31639,300,0.05,700,0,1000
+maob_parkinson,Parkinson disease,MONDO_0005180,MAOB,P27338,300,0.05,700,0,1000
