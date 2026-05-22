@@ -1,0 +1,15 @@
+,value
+run_dir,/home/farhahna/anpdb-workflow/md_runs/production/sglt2_mol13144/rep1
+frames,2000
+atoms,168757
+stride,1
+time_ns_final,99.94999988553671
+backbone_rmsd_A_final,1.8175251483917232
+backbone_rmsd_A_mean,1.616396307945251
+backbone_rmsd_A_max,2.376004695892334
+ligand_atoms,64
+ligand_rmsd_A_final,0.39471206068992604
+ligand_rmsd_A_mean,0.32177215814590404
+ligand_rmsd_A_max,0.657377839088439
+contact_cutoff_nm,0.4
+n_contact_residues,250

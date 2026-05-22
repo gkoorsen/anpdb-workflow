@@ -1,0 +1,4 @@
+system,replicate,pbc_ligand_pose_rmsd_A_mean,pbc_ligand_pose_rmsd_A_max,pbc_ligand_pose_rmsd_A_final,pbc_ligand_sasa_nm2_mean,pbc_contact_atoms_4A_mean,pbc_contact_atoms_4A_min
+MAO-B,rep1_rerun2,1.3098160808500001,2.5007048,1.0297527,0.09203556902000001,42.185,30
+MAO-B,rep2,2.49300348855,3.727442,3.0271297,0.0906576989325,39.31,30
+MAO-B,rep3,1.5070650576,2.5739818,2.2651305,0.04621672818453,43.22,33
