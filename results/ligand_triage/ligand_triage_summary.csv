@@ -1,0 +1,4 @@
+target,compound_id,compound_name,md_status,mw_Da,clogp,tpsa_A2,hbd,hba,rotatable_bonds,qed,esol_logS,esol_class,lipinski_pass,lipinski_violations,veber_pass,egan_pass,ghose_pass,lead_like_pass,rough_high_gi_absorption,rough_bbb_permeable,pains_alert_count,brenk_alert_count,triage_label
+CYP1B1,Mol_11315,pseudarflavone A,3 x 100 ns complete,322.27,2.98,100.88,2,6,1,0.413,-4.26,poorly soluble,yes,0,yes,yes,yes,yes,yes,no,0,2,acceptable: review alerts/properties
+SGLT2,Mol_13144,justisecundoside B,rep1/rep2 complete; rep3 pending,530.48,0.12,162.6,4,12,6,0.295,-3.04,moderately soluble,no,2,no,no,no,no,no,no,0,1,caution: oral rule violation
+MAO-B,Mol_14056,chaetocochin C,3 x 100 ns complete,305.16,4.65,26.3,0,2,1,0.717,-5.04,poorly soluble,yes,0,yes,yes,yes,no,yes,yes,0,1,acceptable: review alerts/properties
