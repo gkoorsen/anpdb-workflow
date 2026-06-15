@@ -1,0 +1,36 @@
+{
+  "created_utc": "2026-06-15T06:29:37.446963+00:00",
+  "source_url": "https://encompass.ninds.nih.gov/webfiles/database/selection/whole_structs/4djh_enc.pdb",
+  "raw_output": "/Users/gerritkoorsen/anpdb-novelty/data/md_inputs/receptors/4DJH_encompass_raw.pdb",
+  "reference": "/Users/gerritkoorsen/anpdb-novelty/data/md_inputs/receptors/4DJH_OPRK1_clean_unoriented_reference.pdb",
+  "receptor_output": "/Users/gerritkoorsen/anpdb-novelty/data/md_inputs/receptors/4DJH_OPRK1_opm_oriented_clean.pdb",
+  "ligand_input": "/Users/gerritkoorsen/anpdb-novelty/data/md_inputs/poses/Mol_16614_4DJH_out.pdbqt",
+  "ligand_output": "/Users/gerritkoorsen/anpdb-novelty/data/md_inputs/poses/Mol_16614_4DJH_opm_oriented_out.pdbqt",
+  "chain": "A",
+  "receptor_atoms": 2224,
+  "transformed_ligand_atoms": 234,
+  "matched_ca_atoms": 287,
+  "fit_rmsd_angstrom": 0.0005006060159044338,
+  "rotation": [
+    [
+      0.19581112814372684,
+      0.9794076886319621,
+      0.04917907627922846
+    ],
+    [
+      -0.9801870739568528,
+      0.19394732493328243,
+      0.04022107903981021
+    ],
+    [
+      0.029854683769617793,
+      -0.05608042973998134,
+      0.9979798010266513
+    ]
+  ],
+  "translation": [
+    -43.77571999679276,
+    7.453758459141211,
+    -48.101925524177396
+  ]
+}

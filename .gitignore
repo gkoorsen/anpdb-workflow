@@ -32,6 +32,15 @@ data/*
 !data/.gitkeep
 !data/md_inputs/
 data/md_inputs/*
+!data/md_inputs/oprk1_orientation_manifest.json
+!data/md_inputs/poses/
+data/md_inputs/poses/*
+!data/md_inputs/poses/Mol_16614_4DJH_out.pdbqt
+!data/md_inputs/poses/Mol_16614_4DJH_opm_oriented_out.pdbqt
+!data/md_inputs/receptors/
+data/md_inputs/receptors/*
+!data/md_inputs/receptors/4DJH_OPRK1_clean_unoriented_reference.pdb
+!data/md_inputs/receptors/4DJH_OPRK1_opm_oriented_clean.pdb
 !data/md_inputs/amber_systems/
 !data/md_inputs/amber_systems/.gitkeep
 !data/md_inputs/amber_systems/*.prmtop

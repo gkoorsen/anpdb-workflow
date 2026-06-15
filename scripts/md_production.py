@@ -48,6 +48,12 @@ PRODUCTION_GATES = {
         "requires_membrane": True,
         "note": "SGLT2 production runs should use a membrane-oriented structure and lipid bilayer.",
     },
+    "OPRK1": {
+        "required_heterogens": set(),
+        "expected_cofactor_residues": set(),
+        "requires_membrane": True,
+        "note": "OPRK1 production runs should use a membrane-oriented GPCR structure and lipid bilayer.",
+    },
 }
 
 
@@ -146,9 +152,9 @@ def validate_production_gates(config: dict[str, Any], receptor_pdb: Path | None,
         membrane_enabled = bool(deep_get(config, "system.membrane.enabled", False))
         oriented = bool(deep_get(config, "input.receptor_is_membrane_oriented", False))
         if environment != "membrane" or not membrane_enabled:
-            errors.append("SGLT2 requires system.environment: membrane and system.membrane.enabled: true.")
+            errors.append(f"{target} requires system.environment: membrane and system.membrane.enabled: true.")
         if not oriented:
-            errors.append("SGLT2 requires input.receptor_is_membrane_oriented: true after OPM/CHARMM-GUI/manual orientation.")
+            errors.append(f"{target} requires input.receptor_is_membrane_oriented: true after OPM/CHARMM-GUI/manual orientation.")
 
     required_heterogens = set(gate["required_heterogens"])
     if required_heterogens:

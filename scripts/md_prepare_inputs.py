@@ -4,6 +4,7 @@ This script stages the files that can be prepared from this repository's local
 docking outputs. It deliberately does not fabricate the hard scientific inputs:
 
 - SGLT2 must still be supplied as an OPM/PPM/CHARMM-GUI-oriented receptor.
+- OPRK1 must be supplied in the EncoMPASS/OPM membrane frame with the ligand pose transformed into the same coordinates.
 - CYP1B1 heme and MAO-B FAD force-field XML files must still be supplied.
 
 Usage:
@@ -39,6 +40,10 @@ FILES = {
         OUT / "docking" / "results" / "Mol_14056_2V5Z_out.pdbqt",
         DEST / "poses" / "Mol_14056_2V5Z_out.pdbqt",
     ),
+    "oprk1_pose": (
+        OUT / "docking" / "disease_link_outstanding" / "results" / "Mol_16614_4DJH_out.pdbqt",
+        DEST / "poses" / "Mol_16614_4DJH_out.pdbqt",
+    ),
     "cyp1b1_receptor": (
         OUT / "docking" / "receptors" / "4I8V_clean.pdb",
         DEST / "receptors" / "4I8V_chainA_heme_prepared.pdb",
@@ -50,6 +55,10 @@ FILES = {
     "sglt2_unoriented_reference": (
         OUT / "docking" / "receptors" / "7VSI_clean.pdb",
         DEST / "receptors" / "7VSI_clean_unoriented_reference.pdb",
+    ),
+    "oprk1_receptor": (
+        OUT / "docking" / "disease_link_outstanding" / "receptors" / "4DJH_OPRK1_clean.pdb",
+        DEST / "receptors" / "4DJH_OPRK1_clean_unoriented_reference.pdb",
     ),
 }
 
@@ -87,6 +96,8 @@ def main() -> int:
         "files": {},
         "production_blockers": [
             "Run scripts/md_fetch_orient_sglt2.py to create the OPM-oriented 7VSI receptor and transformed ligand pose.",
+            "Run scripts/md_fetch_orient_oprk1.py to create the EncoMPASS/OPM-oriented 4DJH receptor and transformed Mol_16614 pose.",
+            "Inspect OPRK1 equilibrated.pdb carefully because 4DJH is a GPCR crystal construct with a T4 lysozyme fusion segment.",
             "Provide data/md_inputs/cofactors/heme.xml matching HEM in 4I8V_chainA_heme_prepared.pdb.",
             "Provide data/md_inputs/cofactors/fad.xml matching FAD in 2V5Z_chainA_fad_prepared.pdb.",
         ],
@@ -107,18 +118,24 @@ def main() -> int:
         "Staged from local outputs:\n\n"
         "- `anpdb_truly_novel_std.csv`\n"
         "- ligand PDBQT docking poses for Mol_11315, Mol_13144, and Mol_14056\n"
+        "- ligand PDBQT docking pose for OPRK1 / Mol_16614\n"
         "- CYP1B1 receptor with HEM retained\n"
         "- MAO-B receptor with FAD retained\n"
         "- SGLT2 unoriented reference receptor only\n\n"
+        "- OPRK1 4DJH unoriented reference receptor\n\n"
         "Still required before all production runs:\n\n"
         "- `receptors/7VSI_opm_oriented_clean.pdb`\n"
         "- `poses/Mol_13144_7VSI_opm_oriented_out.pdbqt`\n"
+        "- `receptors/4DJH_OPRK1_opm_oriented_clean.pdb`\n"
+        "- `poses/Mol_16614_4DJH_opm_oriented_out.pdbqt`\n"
+        "- inspection of OPRK1 `equilibrated.pdb` after membrane insertion\n"
         "- `cofactors/heme.xml`\n"
         "- `cofactors/fad.xml`\n"
         "- or curated Amber systems under `amber_systems/` for CYP1B1 and MAO-B\n\n"
         "Create the SGLT2-oriented receptor and ligand pose with:\n\n"
         "```bash\n"
         "python scripts/md_fetch_orient_sglt2.py\n"
+        "python scripts/md_fetch_orient_oprk1.py\n"
         "```\n",
     )
     (DEST / "input_manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")

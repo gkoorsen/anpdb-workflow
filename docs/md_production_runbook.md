@@ -5,7 +5,7 @@
 Use this machine for source edits, syntax checks, and dry-runs only. Do not start 100 ns production jobs here.
 
 ```bash
-python3 -m py_compile scripts/check_openmm_cuda.py scripts/md_prepare_inputs.py scripts/md_fetch_orient_sglt2.py scripts/md_check_inputs.py scripts/md_check_amber_inputs.py scripts/md_production.py scripts/md_production_amber.py scripts/md_batch.py scripts/md_batch_amber.py scripts/md_analyze_production.py
+python3 -m py_compile scripts/check_openmm_cuda.py scripts/md_prepare_inputs.py scripts/md_fetch_orient_sglt2.py scripts/md_fetch_orient_oprk1.py scripts/md_check_inputs.py scripts/md_check_amber_inputs.py scripts/md_production.py scripts/md_production_amber.py scripts/md_batch.py scripts/md_batch_amber.py scripts/md_analyze_production.py
 python3 scripts/md_prepare_inputs.py
 python3 scripts/md_check_inputs.py
 python3 scripts/md_production.py --config configs/md/production/sglt2_mol13144_100ns_rep1.toml --dry-run
@@ -44,10 +44,11 @@ Stage ignored inputs under `data/md_inputs/` on the GPU machine. If you have cop
 ```bash
 python scripts/md_prepare_inputs.py
 python scripts/md_fetch_orient_sglt2.py
+python scripts/md_fetch_orient_oprk1.py
 python scripts/md_check_inputs.py
 ```
 
-The preparer copies the local docking poses, SMILES table, CYP1B1 receptor with HEM retained, MAO-B receptor with FAD retained, and the unoriented 7VSI reference. The SGLT2 orientation script downloads the OPM/EncoMPASS membrane-oriented 7VSI coordinates, keeps chain A, removes MAP17 and OPM dummy atoms, and applies the same rigid-body transform to the docked SGLT2 ligand pose. Neither script fabricates cofactor force-field XML files.
+The preparer copies the local docking poses, SMILES table, CYP1B1 receptor with HEM retained, MAO-B receptor with FAD retained, the unoriented 7VSI reference, and the unoriented 4DJH OPRK1 reference. The SGLT2 orientation script downloads the OPM/EncoMPASS membrane-oriented 7VSI coordinates, keeps chain A, removes MAP17 and OPM dummy atoms, and applies the same rigid-body transform to the docked SGLT2 ligand pose. The OPRK1 orientation script downloads the EncoMPASS/OPM-oriented 4DJH coordinates and applies the same rigid-body transform to the Mol_16614 pose. Neither script fabricates cofactor force-field XML files.
 
 The SGLT2 orientation script uses NumPy, so run it from the `anpdb-md` environment or another environment with NumPy installed.
 
@@ -61,10 +62,14 @@ data/md_inputs/
     Mol_13144_7VSI_out.pdbqt
     Mol_13144_7VSI_opm_oriented_out.pdbqt
     Mol_14056_2V5Z_out.pdbqt
+    Mol_16614_4DJH_out.pdbqt
+    Mol_16614_4DJH_opm_oriented_out.pdbqt
   receptors/
     4I8V_chainA_heme_prepared.pdb
     7VSI_opm_oriented_clean.pdb
     2V5Z_chainA_fad_prepared.pdb
+    4DJH_OPRK1_clean_unoriented_reference.pdb
+    4DJH_OPRK1_opm_oriented_clean.pdb
   amber_systems/
     cyp1b1_mol11315.prmtop
     cyp1b1_mol11315.inpcrd
@@ -77,7 +82,7 @@ data/md_inputs/
       CYF_cys397_fad_manifest.json
 ```
 
-The SGLT2 receptor and ligand pose must be in the same membrane-oriented coordinate frame before use. For CYP1B1 and MAO-B, prefer the Amber-prepared `amber_systems/` files. `cofactors/heme.xml` and `cofactors/fad.xml` are only needed if using the older OpenMM ffxml assembly configs under `configs/md/production/`.
+The SGLT2 and OPRK1 receptors and ligand poses must be in their respective membrane-oriented coordinate frames before use. Inspect `equilibrated.pdb` after the first OPRK1 equilibration because 4DJH contains an engineered T4 lysozyme fusion segment. For CYP1B1 and MAO-B, prefer the Amber-prepared `amber_systems/` files. `cofactors/heme.xml` and `cofactors/fad.xml` are only needed if using the older OpenMM ffxml assembly configs under `configs/md/production/`.
 
 Check readiness at any time:
 
@@ -164,6 +169,18 @@ Equilibrate all first replicates sequentially on one GPU:
 
 ```bash
 python scripts/md_batch.py configs/md/production/sglt2_*_rep1.toml --equilibrate-only
+```
+
+Equilibrate the OPRK1 first replicate:
+
+```bash
+python scripts/md_production.py --config configs/md/production/oprk1_mol16614_100ns_rep1.toml --equilibrate-only
+```
+
+Inspect `md_runs/production/oprk1_mol16614/rep1/equilibrated.pdb`. If the lipid placement is acceptable, run all OPRK1 replicates:
+
+```bash
+python scripts/md_batch.py configs/md/production/oprk1_mol16614_100ns_rep*.toml --resume
 ```
 
 After inspection, run SGLT2 production sequentially:

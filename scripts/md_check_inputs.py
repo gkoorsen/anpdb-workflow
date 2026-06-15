@@ -6,6 +6,7 @@ Usage:
 
 from __future__ import annotations
 
+import argparse
 import json
 import tomllib
 import xml.etree.ElementTree as ET
@@ -54,6 +55,7 @@ def ffxml_residue_names(path: Path) -> set[str]:
 
 
 def check_config(config_path: Path) -> dict[str, object]:
+    config_path = config_path if config_path.is_absolute() else ROOT / config_path
     with config_path.open("rb") as handle:
         cfg = tomllib.load(handle)
     target = cfg["run"]["target"]
@@ -85,11 +87,11 @@ def check_config(config_path: Path) -> dict[str, object]:
     smiles = resolve(cfg["input"]["ligand_smiles_table"])
     add("smiles_table_exists", smiles.exists(), str(smiles))
 
-    if target == "SGLT2":
+    if target in {"SGLT2", "OPRK1"}:
         oriented = bool(cfg["input"].get("receptor_is_membrane_oriented", False))
-        add("membrane_orientation_declared", oriented, "Config must declare receptor_is_membrane_oriented = true")
-        add("membrane_environment", cfg["system"].get("environment") == "membrane", "system.environment must be membrane")
-        add("membrane_enabled", bool(cfg["system"].get("membrane", {}).get("enabled", False)), "system.membrane.enabled must be true")
+        add("membrane_orientation_declared", oriented, f"{target} config must declare receptor_is_membrane_oriented = true")
+        add("membrane_environment", cfg["system"].get("environment") == "membrane", f"{target} system.environment must be membrane")
+        add("membrane_enabled", bool(cfg["system"].get("membrane", {}).get("enabled", False)), f"{target} system.membrane.enabled must be true")
 
     cofactor_residues: set[str] = set()
     for cofactor_path in cfg["system"].get("cofactors", {}).get("parameter_files", []):
@@ -115,8 +117,20 @@ def check_config(config_path: Path) -> dict[str, object]:
 
 
 def main() -> int:
-    configs = sorted(CONFIG_DIR.glob("*.toml"))
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("configs", nargs="*", type=Path, help="Optional config paths. Defaults to all production configs.")
+    parser.add_argument("--target", help="Optional target filter, e.g. OPRK1.")
+    args = parser.parse_args()
+
+    configs = [path if path.is_absolute() else ROOT / path for path in args.configs]
+    if not configs:
+        configs = sorted(CONFIG_DIR.glob("*.toml"))
     results = [check_config(path) for path in configs]
+    if args.target:
+        results = [item for item in results if str(item["target"]).upper() == args.target.upper()]
+        if not results:
+            print(json.dumps({"ready": False, "configs": [], "error": f"No configs matched target {args.target!r}"}, indent=2))
+            return 1
     ready = all(bool(item["ready"]) for item in results)
     payload = {"ready": ready, "configs": results}
     print(json.dumps(payload, indent=2))
