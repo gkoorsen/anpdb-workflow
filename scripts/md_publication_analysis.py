@@ -49,9 +49,9 @@ RUNS = [
     RunSpec("SGLT2 mol15088", "rep1", Path("md_runs/production/sglt2_mol15088/rep1"), "UNK"),
     RunSpec("SGLT2 mol15088", "rep2", Path("md_runs/production/sglt2_mol15088/rep2"), "UNK"),
     RunSpec("SGLT2 mol15088", "rep3", Path("md_runs/production/sglt2_mol15088/rep3"), "UNK"),
-    RunSpec("OPRK1 mol16614", "rep1", Path("md_runs/production/oprk1_mol16614/rep1"), "UNL"),
-    RunSpec("OPRK1 mol16614", "rep2", Path("md_runs/production/oprk1_mol16614/rep2"), "UNL"),
-    RunSpec("OPRK1 mol16614", "rep3", Path("md_runs/production/oprk1_mol16614/rep3"), "UNL"),
+    RunSpec("OPRK1 mol16614", "rep1", Path("md_runs/production/oprk1_mol16614/rep1"), "UNK"),
+    RunSpec("OPRK1 mol16614", "rep2", Path("md_runs/production/oprk1_mol16614/rep2"), "UNK"),
+    RunSpec("OPRK1 mol16614", "rep3", Path("md_runs/production/oprk1_mol16614/rep3"), "UNK"),
 ]
 
 COLORS = {

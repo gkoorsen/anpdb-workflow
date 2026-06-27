@@ -25,7 +25,7 @@ SOLVENT_ION_RESNAMES = {
     "Na+", "Cl-", "K+",
 }
 LIPID_RESNAMES = {
-    "POPC", "POPE", "POPG", "POPS", "POPA", "DPPC", "DOPC", "CHL", "CHL1",
+    "POP", "POPC", "POPE", "POPG", "POPS", "POPA", "DPPC", "DOPC", "CHL", "CHL1",
 }
 COFACTOR_RESNAMES = {"HEM", "HEME", "FAD", "FMN", "NAD", "NAP"}
 
