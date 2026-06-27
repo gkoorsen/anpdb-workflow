@@ -1,0 +1,58 @@
+system,compound_id,compound_name,replicate,rank,residue,min_distance_A,nearest_ligand_atom_index,nearest_ligand_atom_name,nearest_protein_atom_name,hbond_like,occupancy,ligand_heavy_atoms,rdkit_heavy_atoms
+MAO-B,Mol_14056,chaetocochin C,rep1_rerun2,1,GLN204,2.9935426712036133,8054,O2,NE2,True,1.0,20,20
+MAO-B,Mol_14056,chaetocochin C,rep1_rerun2,2,TYR396,3.2055351734161377,8051,C9,CE2,False,1.0,20,20
+MAO-B,Mol_14056,chaetocochin C,rep1_rerun2,3,TYR433,3.3025259971618652,8050,Cl1,CE1,False,1.0,20,20
+MAO-B,Mol_14056,chaetocochin C,rep1_rerun2,4,CYS170,2.9709720611572266,8041,O1,N,True,0.995,20,20
+MAO-B,Mol_14056,chaetocochin C,rep1_rerun2,5,LEU169,3.130366802215576,8041,O1,C,False,0.995,20,20
+MAO-B,Mol_14056,chaetocochin C,rep1_rerun2,6,TYR324,3.4383974075317383,8056,C12,CE2,False,0.995,20,20
+MAO-B,Mol_14056,chaetocochin C,rep1_rerun2,7,PHE166,3.341503620147705,8041,O1,O,True,0.915,20,20
+MAO-B,Mol_14056,chaetocochin C,rep1_rerun2,8,TYR186,3.723325252532959,8050,Cl1,OH,False,0.915,20,20
+MAO-B,Mol_14056,chaetocochin C,rep1_rerun2,9,GLY432,4.084526538848877,8050,Cl1,C,False,0.905,20,20
+MAO-B,Mol_14056,chaetocochin C,rep1_rerun2,10,ILE197,4.080287456512451,8056,C12,CG2,False,0.865,20,20
+MAO-B,Mol_14056,chaetocochin C,rep1_rerun2,11,CYF395,3.890620708465576,8048,C7,N3,False,0.8,20,20
+MAO-B,Mol_14056,chaetocochin C,rep1_rerun2,12,PHE341,3.761242389678955,8046,C5,CE2,False,0.435,20,20
+SGLT2,Mol_13144,justisecundoside B,rep1,1,ASN55,2.7851157188415527,9096,O3x,ND2,True,1.0,38,38
+SGLT2,Mol_13144,justisecundoside B,rep1,2,SER267,3.1749916076660156,9116,O9x,N,True,1.0,38,38
+SGLT2,Mol_13144,justisecundoside B,rep1,3,PHE78,3.330220937728882,9108,C20x,O,False,1.0,38,38
+SGLT2,Mol_13144,justisecundoside B,rep1,4,HIS60,3.743351697921753,9105,C18x,CE1,False,1.0,38,38
+SGLT2,Mol_13144,justisecundoside B,rep1,5,GLN437,3.1736433506011963,9112,O7x,NE2,True,0.99,38,38
+SGLT2,Mol_13144,justisecundoside B,rep1,6,TYR270,3.2736282348632812,9114,O8x,CB,False,0.985,38,38
+SGLT2,Mol_13144,justisecundoside B,rep1,7,VAL266,2.9729392528533936,9116,O9x,O,True,0.98,38,38
+SGLT2,Mol_13144,justisecundoside B,rep1,8,ALA82,3.5033793449401855,9098,O4x,CA,False,0.965,38,38
+SGLT2,Mol_13144,justisecundoside B,rep1,9,SER54,3.1111109256744385,9120,C26x,O,False,0.955,38,38
+SGLT2,Mol_13144,justisecundoside B,rep1,10,TRP271,3.6000008583068848,9096,O3x,CB,False,0.955,38,38
+SGLT2,Mol_13144,justisecundoside B,rep1,11,SER440,3.3308026790618896,9086,O2x,CB,False,0.93,38,38
+SGLT2,Mol_13144,justisecundoside B,rep1,12,LEU263,2.9834980964660645,9091,C6x,O,False,0.885,38,38
+SGLT2,Mol_13733,spinacetin3-O-beta-D-glucopyranoside,rep1,1,ASP138,2.4561376571655273,9111,O8x,OD1,True,1.0,31,31
+SGLT2,Mol_13733,spinacetin3-O-beta-D-glucopyranoside,rep1,2,PHE78,2.667776346206665,9096,O3x,O,True,1.0,31,31
+SGLT2,Mol_13733,spinacetin3-O-beta-D-glucopyranoside,rep1,3,HIS60,2.8022279739379883,9113,O9x,NE2,True,1.0,31,31
+SGLT2,Mol_13733,spinacetin3-O-beta-D-glucopyranoside,rep1,4,SER267,3.0493359565734863,9096,O3x,CB,False,1.0,31,31
+SGLT2,Mol_13733,spinacetin3-O-beta-D-glucopyranoside,rep1,5,VAL137,3.3549394607543945,9109,O7x,C,False,1.0,31,31
+SGLT2,Mol_13733,spinacetin3-O-beta-D-glucopyranoside,rep1,6,GLY59,3.4086318016052246,9109,O7x,CA,False,1.0,31,31
+SGLT2,Mol_13733,spinacetin3-O-beta-D-glucopyranoside,rep1,7,TYR270,3.679385185241699,9098,C12x,CE1,False,0.9950248756218906,31,31
+SGLT2,Mol_13733,spinacetin3-O-beta-D-glucopyranoside,rep1,8,VAL266,3.5985617637634277,9089,C5x,CG1,False,0.9850746268656716,31,31
+SGLT2,Mol_13733,spinacetin3-O-beta-D-glucopyranoside,rep1,9,LYS134,3.308616876602173,9111,O8x,CE,False,0.9800995024875622,31,31
+SGLT2,Mol_13733,spinacetin3-O-beta-D-glucopyranoside,rep1,10,GLU79,3.6707539558410645,9097,C11x,OE2,False,0.9353233830845772,31,31
+SGLT2,Mol_13733,spinacetin3-O-beta-D-glucopyranoside,rep1,11,GLN437,3.54573917388916,9107,O6x,NE2,False,0.9303482587064676,31,31
+SGLT2,Mol_13733,spinacetin3-O-beta-D-glucopyranoside,rep1,12,SER440,3.7046775817871094,9089,C5x,CB,False,0.8656716417910447,31,31
+SGLT2,Mol_15088,4beta-hydroxyasarinin-1-O-beta-D-glucopyranoside,rep2,1,GLU79,2.56531023979187,9120,O12x,OE1,True,1.0,39,39
+SGLT2,Mol_15088,4beta-hydroxyasarinin-1-O-beta-D-glucopyranoside,rep2,2,HIS60,2.8180816173553467,9120,O12x,ND1,True,1.0,39,39
+SGLT2,Mol_15088,4beta-hydroxyasarinin-1-O-beta-D-glucopyranoside,rep2,3,ASN55,2.8942129611968994,9118,O11x,O,True,1.0,39,39
+SGLT2,Mol_15088,4beta-hydroxyasarinin-1-O-beta-D-glucopyranoside,rep2,4,PHE78,3.1769635677337646,9122,O13x,CB,False,0.9900497512437813,39,39
+SGLT2,Mol_15088,4beta-hydroxyasarinin-1-O-beta-D-glucopyranoside,rep2,5,LYS134,3.389935255050659,9095,C8x,CA,False,0.9900497512437813,39,39
+SGLT2,Mol_15088,4beta-hydroxyasarinin-1-O-beta-D-glucopyranoside,rep2,6,GLN437,3.4883828163146973,9109,C18x,NE2,False,0.9900497512437813,39,39
+SGLT2,Mol_15088,4beta-hydroxyasarinin-1-O-beta-D-glucopyranoside,rep2,7,LEU64,3.229234457015991,9114,O9x,N,True,0.9850746268656716,39,39
+SGLT2,Mol_15088,4beta-hydroxyasarinin-1-O-beta-D-glucopyranoside,rep2,8,SER373,3.1916167736053467,9102,O6x,OG,True,0.9751243781094528,39,39
+SGLT2,Mol_15088,4beta-hydroxyasarinin-1-O-beta-D-glucopyranoside,rep2,9,TYR270,3.953582286834717,9084,O1x,CD1,False,0.9751243781094528,39,39
+SGLT2,Mol_15088,4beta-hydroxyasarinin-1-O-beta-D-glucopyranoside,rep2,10,THR67,3.226379871368408,9115,C23x,OG1,False,0.965174129353234,39,39
+SGLT2,Mol_15088,4beta-hydroxyasarinin-1-O-beta-D-glucopyranoside,rep2,11,THR133,3.118448257446289,9093,C6x,O,False,0.9601990049751244,39,39
+SGLT2,Mol_15088,4beta-hydroxyasarinin-1-O-beta-D-glucopyranoside,rep2,12,GLY63,3.1013121604919434,9114,O9x,C,False,0.945273631840796,39,39
+OPRK1,Mol_16614,"15,16-epoxy-17,12(S)-olide-ent-cleroda-1,3,13(16),14-tetraen-18-oic acid methyl ester",rep3,1,TYR65,3.234856605529785,4699,O5x,CD2,False,0.9900497512437813,26,26
+OPRK1,Mol_16614,"15,16-epoxy-17,12(S)-olide-ent-cleroda-1,3,13(16),14-tetraen-18-oic acid methyl ester",rep3,2,TYR12,3.390324354171753,4679,C1x,CB,False,0.9900497512437813,26,26
+OPRK1,Mol_16614,"15,16-epoxy-17,12(S)-olide-ent-cleroda-1,3,13(16),14-tetraen-18-oic acid methyl ester",rep3,3,GLN61,3.2874491214752197,4693,C13x,OE1,False,0.9850746268656716,26,26
+OPRK1,Mol_16614,"15,16-epoxy-17,12(S)-olide-ent-cleroda-1,3,13(16),14-tetraen-18-oic acid methyl ester",rep3,4,SER62,3.034029245376587,4682,O2x,OG,True,0.9800995024875622,26,26
+OPRK1,Mol_16614,"15,16-epoxy-17,12(S)-olide-ent-cleroda-1,3,13(16),14-tetraen-18-oic acid methyl ester",rep3,5,TYR253,3.1895523071289062,4695,O3x,CE2,False,0.9601990049751244,26,26
+OPRK1,Mol_16614,"15,16-epoxy-17,12(S)-olide-ent-cleroda-1,3,13(16),14-tetraen-18-oic acid methyl ester",rep3,6,VAL64,3.606534481048584,4696,C15x,CG1,False,0.8706467661691543,26,26
+OPRK1,Mol_16614,"15,16-epoxy-17,12(S)-olide-ent-cleroda-1,3,13(16),14-tetraen-18-oic acid methyl ester",rep3,7,THR9,3.791318893432617,4679,C1x,OG1,False,0.8656716417910447,26,26
+OPRK1,Mol_16614,"15,16-epoxy-17,12(S)-olide-ent-cleroda-1,3,13(16),14-tetraen-18-oic acid methyl ester",rep3,8,ILE8,3.3642053604125977,4680,O1x,CG2,False,0.36318407960199,26,26
+OPRK1,Mol_16614,"15,16-epoxy-17,12(S)-olide-ent-cleroda-1,3,13(16),14-tetraen-18-oic acid methyl ester",rep3,9,ALA257,4.446874618530273,4704,C21x,CB,False,0.0796019900497512,26,26
