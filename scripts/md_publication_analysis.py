@@ -1,13 +1,8 @@
-"""Generate publication-oriented MD analysis figures for CYP1B1 and MAO-B.
-
-The script uses the validated production trajectories:
-
-- CYP1B1: rep1, rep2, rep3
-- MAO-B: rep1_rerun2, rep2, rep3
+"""Generate publication-oriented MD analysis figures for completed MD systems.
 
 It reuses the per-run outputs from scripts/md_analyze_production.py for RMSD,
-RMSF, and contact occupancy, and computes additional summary descriptors from
-strided trajectories to keep the runtime manageable.
+RMSF, contact occupancy, and pose-retention descriptors, and computes additional
+summary descriptors from strided trajectories to keep runtime manageable.
 """
 
 from __future__ import annotations
@@ -27,6 +22,8 @@ import mdtraj as md
 import numpy as np
 import pandas as pd
 
+from md_analyze_production import LIPID_RESNAMES, heavy_indices, ligand_pose_retention
+
 
 @dataclass(frozen=True)
 class RunSpec:
@@ -43,12 +40,31 @@ RUNS = [
     RunSpec("MAO-B", "rep1_rerun2", Path("md_runs/production/maob_mol14056_amber/rep1_rerun2"), "LIG"),
     RunSpec("MAO-B", "rep2", Path("md_runs/production/maob_mol14056_amber/rep2"), "LIG"),
     RunSpec("MAO-B", "rep3", Path("md_runs/production/maob_mol14056_amber/rep3"), "LIG"),
+    RunSpec("SGLT2 mol13144", "rep1", Path("md_runs/production/sglt2_mol13144/rep1"), "UNK"),
+    RunSpec("SGLT2 mol13144", "rep2", Path("md_runs/production/sglt2_mol13144/rep2"), "UNK"),
+    RunSpec("SGLT2 mol13144", "rep3", Path("md_runs/production/sglt2_mol13144/rep3"), "UNK"),
+    RunSpec("SGLT2 mol13733", "rep1", Path("md_runs/production/sglt2_mol13733/rep1"), "UNK"),
+    RunSpec("SGLT2 mol13733", "rep2", Path("md_runs/production/sglt2_mol13733/rep2"), "UNK"),
+    RunSpec("SGLT2 mol13733", "rep3", Path("md_runs/production/sglt2_mol13733/rep3"), "UNK"),
+    RunSpec("SGLT2 mol15088", "rep1", Path("md_runs/production/sglt2_mol15088/rep1"), "UNK"),
+    RunSpec("SGLT2 mol15088", "rep2", Path("md_runs/production/sglt2_mol15088/rep2"), "UNK"),
+    RunSpec("SGLT2 mol15088", "rep3", Path("md_runs/production/sglt2_mol15088/rep3"), "UNK"),
+    RunSpec("OPRK1 mol16614", "rep1", Path("md_runs/production/oprk1_mol16614/rep1"), "UNL"),
+    RunSpec("OPRK1 mol16614", "rep2", Path("md_runs/production/oprk1_mol16614/rep2"), "UNL"),
+    RunSpec("OPRK1 mol16614", "rep3", Path("md_runs/production/oprk1_mol16614/rep3"), "UNL"),
 ]
 
 COLORS = {
     "CYP1B1": "#1f77b4",
     "MAO-B": "#d95f02",
+    "SGLT2 mol13144": "#1b9e77",
+    "SGLT2 mol13733": "#7570b3",
+    "SGLT2 mol15088": "#e7298a",
+    "OPRK1 mol16614": "#66a61e",
 }
+
+
+SYSTEMS = list(dict.fromkeys(run.system for run in RUNS))
 
 
 def ensure_run_ready(run: RunSpec) -> None:
@@ -60,6 +76,7 @@ def ensure_run_ready(run: RunSpec) -> None:
         run.run_dir / "analysis" / "rmsd_timeseries.csv",
         run.run_dir / "analysis" / "rmsf_ca.csv",
         run.run_dir / "analysis" / "contact_occupancy.csv",
+        run.run_dir / "analysis" / "pose_retention_timeseries.csv",
     ]
     missing = [str(path) for path in required if not path.exists()]
     if missing:
@@ -120,9 +137,10 @@ def compute_extra_metrics(run: RunSpec, stride: int) -> tuple[pd.DataFrame, pd.D
         stride=stride,
     )
     top = traj.topology
-    protein = top.select("protein")
-    backbone = top.select("protein and backbone")
     ligand = np.array([atom.index for atom in top.atoms if atom.residue.name == run.ligand_resname], dtype=int)
+    ligand_set = set(int(index) for index in ligand)
+    protein = np.array([int(index) for index in top.select("protein") if int(index) not in ligand_set], dtype=int)
+    backbone = np.array([int(index) for index in top.select("protein and backbone") if int(index) not in ligand_set], dtype=int)
     if len(protein) == 0 or len(backbone) == 0 or len(ligand) == 0:
         raise SystemExit(f"Could not select protein/backbone/ligand atoms for {run.run_dir}")
 
@@ -163,6 +181,27 @@ def compute_extra_metrics(run: RunSpec, stride: int) -> tuple[pd.DataFrame, pd.D
         haystack_indices=protein_heavy_local,
     )
     contact_counts = np.array([len(frame_neighbors) for frame_neighbors in neighbors], dtype=int)
+    protein_heavy = np.array(
+        [
+            atom.index
+            for atom in top.atoms
+            if atom.index not in ligand_set
+            and atom.residue.is_protein
+            and atom.element is not None
+            and atom.element.symbol != "H"
+        ],
+        dtype=int,
+    )
+    ligand_heavy = heavy_indices(top, ligand)
+    lipid_indices = np.array(
+        [
+            atom.index
+            for atom in top.atoms
+            if atom.residue.name in LIPID_RESNAMES and atom.element is not None and atom.element.symbol != "H"
+        ],
+        dtype=int,
+    )
+    pose = ligand_pose_retention(traj, ligand_heavy, protein_heavy, lipid_indices)
 
     metrics = pd.DataFrame(
         {
@@ -175,6 +214,7 @@ def compute_extra_metrics(run: RunSpec, stride: int) -> tuple[pd.DataFrame, pd.D
             "protein_ligand_contact_atoms": contact_counts,
         }
     )
+    metrics = pd.concat([metrics, pose], axis=1)
 
     hb_rows = []
     try:
@@ -214,6 +254,14 @@ def compute_extra_metrics(run: RunSpec, stride: int) -> tuple[pd.DataFrame, pd.D
                 "ligand_sasa_nm2_sd": float(ligand_sasa_nm2.std(ddof=1)),
                 "contact_atoms_mean": float(contact_counts.mean()),
                 "contact_atoms_sd": float(contact_counts.std(ddof=1)),
+                "ligand_com_displacement_A_mean": float(pose["ligand_com_displacement_A"].mean()),
+                "ligand_com_displacement_A_max": float(pose["ligand_com_displacement_A"].max()),
+                "ligand_pocket_com_distance_A_mean": float(pose["ligand_pocket_com_distance_A"].mean()),
+                "protein_ligand_min_heavy_distance_A_mean": float(pose["protein_ligand_min_heavy_distance_A"].mean()),
+                "contact_atoms_4A_mean": float(pose["contact_atoms_4A"].mean()),
+                "contact_atoms_6A_mean": float(pose["contact_atoms_6A"].mean()),
+                "contact_atoms_8A_mean": float(pose["contact_atoms_8A"].mean()),
+                "ligand_z_from_membrane_center_A_mean": float(pose["ligand_z_from_membrane_center_A"].mean()),
                 "ligand_protein_hbonds_unique_freq_ge_0p1": int(len(hbonds_df)),
             }
         ]
@@ -228,12 +276,12 @@ def savefig(fig: plt.Figure, out_dir: Path, name: str) -> None:
 
 
 def plot_rmsd(rmsd: pd.DataFrame, out_dir: Path) -> None:
-    fig, axes = plt.subplots(2, 2, figsize=(11, 7), sharex=True)
+    fig, axes = plt.subplots(2, len(SYSTEMS), figsize=(3.4 * len(SYSTEMS), 7), sharex=True, squeeze=False)
     for col, title, row in [
         ("backbone_rmsd_A", "Backbone RMSD", 0),
         ("ligand_rmsd_A", "Ligand RMSD", 1),
     ]:
-        for ax, system in zip(axes[row], ["CYP1B1", "MAO-B"], strict=True):
+        for ax, system in zip(axes[row], SYSTEMS, strict=True):
             sub = rmsd[rmsd["system"] == system]
             for rep, rep_df in sub.groupby("replicate"):
                 ax.plot(rep_df["time_ns"], rep_df[col], lw=0.9, alpha=0.85, label=rep)
@@ -248,19 +296,19 @@ def plot_rmsd(rmsd: pd.DataFrame, out_dir: Path) -> None:
 
 
 def plot_rmsd_distribution(rmsd: pd.DataFrame, out_dir: Path) -> None:
-    fig, axes = plt.subplots(1, 2, figsize=(10, 4))
-    positions = np.arange(1, 3)
+    fig, axes = plt.subplots(1, 2, figsize=(max(10, 1.6 * len(SYSTEMS)), 4))
+    positions = np.arange(1, len(SYSTEMS) + 1)
     for ax, col, title in [
         (axes[0], "backbone_rmsd_A", "Backbone RMSD"),
         (axes[1], "ligand_rmsd_A", "Ligand RMSD"),
     ]:
-        values = [rmsd.loc[rmsd["system"] == system, col].to_numpy() for system in ["CYP1B1", "MAO-B"]]
+        values = [rmsd.loc[rmsd["system"] == system, col].to_numpy() for system in SYSTEMS]
         parts = ax.violinplot(values, positions=positions, showmeans=True, showextrema=False)
-        for body, system in zip(parts["bodies"], ["CYP1B1", "MAO-B"], strict=True):
+        for body, system in zip(parts["bodies"], SYSTEMS, strict=True):
             body.set_facecolor(COLORS[system])
             body.set_alpha(0.35)
         parts["cmeans"].set_color("#222222")
-        ax.set_xticks(positions, ["CYP1B1", "MAO-B"])
+        ax.set_xticks(positions, SYSTEMS, rotation=35, ha="right")
         ax.set_ylabel(f"{title} (A)")
         ax.set_title(title)
         ax.grid(axis="y", alpha=0.25)
@@ -268,8 +316,11 @@ def plot_rmsd_distribution(rmsd: pd.DataFrame, out_dir: Path) -> None:
 
 
 def plot_rmsf(rmsf: pd.DataFrame, out_dir: Path) -> None:
-    fig, axes = plt.subplots(1, 2, figsize=(12, 4), sharey=True)
-    for ax, system in zip(axes, ["CYP1B1", "MAO-B"], strict=True):
+    ncols = 2
+    nrows = int(np.ceil(len(SYSTEMS) / ncols))
+    fig, axes = plt.subplots(nrows, ncols, figsize=(12, 3.6 * nrows), sharey=True, squeeze=False)
+    flat_axes = axes.ravel()
+    for ax, system in zip(flat_axes, SYSTEMS, strict=False):
         sub = rmsf[rmsf["system"] == system]
         pivot = sub.pivot_table(index="residue_index", columns="replicate", values="rmsf_A")
         mean = pivot.mean(axis=1)
@@ -280,13 +331,15 @@ def plot_rmsf(rmsf: pd.DataFrame, out_dir: Path) -> None:
         ax.set_title(system)
         ax.set_xlabel("Residue number")
         ax.grid(alpha=0.25)
-    axes[0].set_ylabel("C-alpha RMSF (A)")
+    for ax in flat_axes[len(SYSTEMS):]:
+        ax.axis("off")
+    axes[0, 0].set_ylabel("C-alpha RMSF (A)")
     fig.suptitle("Per-residue C-alpha RMSF, mean +/- SD across replicates")
     savefig(fig, out_dir, "fig03_ca_rmsf")
 
 
 def plot_contacts(contacts: pd.DataFrame, out_dir: Path) -> None:
-    for system in ["CYP1B1", "MAO-B"]:
+    for system in SYSTEMS:
         sub = contacts[contacts["system"] == system]
         top = (
             sub.groupby("residue", as_index=False)["occupancy"]
@@ -310,10 +363,17 @@ def plot_extra_timeseries(extra: pd.DataFrame, out_dir: Path) -> None:
         ("protein_sasa_nm2", "Protein SASA (nm2)", "fig06_protein_sasa"),
         ("ligand_sasa_nm2", "Ligand SASA (nm2)", "fig07_ligand_sasa"),
         ("protein_ligand_contact_atoms", "Protein atoms within 4 A of ligand", "fig08_ligand_contact_count"),
+        ("ligand_com_displacement_A", "Ligand COM displacement from start (A)", "fig09_ligand_com_displacement"),
+        ("ligand_pocket_com_distance_A", "Ligand COM to starting pocket COM (A)", "fig10_ligand_pocket_com_distance"),
+        ("protein_ligand_min_heavy_distance_A", "Minimum protein-ligand heavy-atom distance (A)", "fig11_min_heavy_atom_distance"),
+        ("ligand_z_from_membrane_center_A", "Ligand z from membrane center (A)", "fig12_ligand_membrane_z"),
     ]
     for column, ylabel, name in plot_defs:
-        fig, axes = plt.subplots(1, 2, figsize=(12, 4), sharey=False)
-        for ax, system in zip(axes, ["CYP1B1", "MAO-B"], strict=True):
+        ncols = 2
+        nrows = int(np.ceil(len(SYSTEMS) / ncols))
+        fig, axes = plt.subplots(nrows, ncols, figsize=(12, 3.4 * nrows), sharey=False, squeeze=False)
+        flat_axes = axes.ravel()
+        for ax, system in zip(flat_axes, SYSTEMS, strict=False):
             sub = extra[extra["system"] == system]
             for rep, rep_df in sub.groupby("replicate"):
                 ax.plot(rep_df["time_ns"], rep_df[column], lw=0.9, alpha=0.85, label=rep)
@@ -322,6 +382,8 @@ def plot_extra_timeseries(extra: pd.DataFrame, out_dir: Path) -> None:
             ax.set_ylabel(ylabel)
             ax.grid(alpha=0.25)
             ax.legend(frameon=False, fontsize=8)
+        for ax in flat_axes[len(SYSTEMS):]:
+            ax.axis("off")
         savefig(fig, out_dir, name)
 
 
@@ -335,17 +397,17 @@ def plot_hbond_candidates(hbonds_df: pd.DataFrame, out_dir: Path) -> None:
     )
     fig, ax = plt.subplots(figsize=(7, 4))
     labels = [f"{row.system}\n{row.replicate}" for row in counts.itertuples()]
-    colors = [COLORS[row.system] for row in counts.itertuples()]
+    colors = [COLORS.get(row.system, "#666666") for row in counts.itertuples()]
     ax.bar(labels, counts["hbond_candidates"], color=colors, alpha=0.8)
     ax.set_ylabel("Unique ligand-protein H-bond candidates")
     ax.set_title("H-bond candidates with >=10% trajectory frequency")
     ax.grid(axis="y", alpha=0.25)
-    savefig(fig, out_dir, "fig09_hbond_candidate_counts")
+    savefig(fig, out_dir, "fig13_hbond_candidate_counts")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--out-dir", type=Path, default=Path("output/md_publication_cyp1b1_maob"))
+    parser.add_argument("--out-dir", type=Path, default=Path("output/md_publication_all_systems"))
     parser.add_argument("--extra-stride", type=int, default=10)
     args = parser.parse_args()
 
