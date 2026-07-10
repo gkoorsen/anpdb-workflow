@@ -15,7 +15,7 @@ if [[ ! -x "${ENV_PREFIX}/bin/python" ]]; then
   exit 1
 fi
 
-if [[ -n "${SNAP_NAME:-}" || "${PATH:-}" == *"/snap/"* ]]; then
+if [[ -n "${SNAP_NAME:-}" || -n "${SNAP:-}" || -n "${SNAP_REVISION:-}" ]]; then
   cat >&2 <<'EOF'
 This launcher must be run from a normal WSL shell, not from inside the codex snap.
 Open a regular Ubuntu terminal and rerun the same command there.
