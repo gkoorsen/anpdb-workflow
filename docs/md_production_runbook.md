@@ -147,6 +147,22 @@ python scripts/md_production_amber.py --config configs/md/amber_production/maob_
 
 ## Running
 
+For the corrected primary membrane reruns on RunPod/Linux or WSL, use the
+pending-equilibration launcher. It runs SGLT2/Mol_13144, SGLT2/Mol_13733,
+SGLT2/Mol_15088, and OPRK1/Mol_16614, three replicates each, skipping runs
+that already have `equilibration_manifest.json` and `production.chk`:
+
+```bash
+scripts/run_pending_md_equilibrations.sh --dry-run-only
+scripts/run_pending_md_equilibrations.sh --archive
+```
+
+If the MD environment is not the active Python, pass its Python explicitly:
+
+```bash
+scripts/run_pending_md_equilibrations.sh --python /path/to/env/bin/python --archive
+```
+
 Dry-run the production plan:
 
 ```bash
