@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import os
 import sys
+import math
 from pathlib import Path
 
 import numpy as np
@@ -133,28 +134,44 @@ def pose_to_openff_mol(pose_pdb: Path, smiles: str, mode: str = "graft"):
               f"pose={raw_noH.GetNumAtoms()}; falling back to smoke", file=sys.stderr)
         return Molecule.from_rdkit(canonical, allow_undefined_stereo=True)
 
-    # Use AssignBondOrdersFromTemplate for the graph-iso atom map;
-    # do NOT use its mol output (that's what caused the SMIRNOFF mismatch).
+    # Use AssignBondOrdersFromTemplate for the graph-isomorphism atom map;
+    # do NOT use its molecule output as the OpenFF molecule.
     pose_with_bonds = AllChem.AssignBondOrdersFromTemplate(canonical_noH, raw_noH)
-    match = canonical_noH.GetSubstructMatch(pose_with_bonds)
-    if not match or len(match) != canonical_noH.GetNumAtoms():
-        match = pose_with_bonds.GetSubstructMatch(canonical_noH)
-        if match and len(match) == canonical_noH.GetNumAtoms():
-            inv = [0] * len(match)
-            for canonical_idx, pose_idx in enumerate(match):
-                inv[pose_idx] = canonical_idx
-            match = inv
-    if not match or len(match) != canonical_noH.GetNumAtoms():
+    match = pose_with_bonds.GetSubstructMatch(canonical_noH)
+    if match and len(match) == canonical_noH.GetNumAtoms():
+        canonical_to_pose = list(match)
+    else:
+        reverse_match = canonical_noH.GetSubstructMatch(pose_with_bonds)
+        if not reverse_match or len(reverse_match) != canonical_noH.GetNumAtoms():
+            print("  WARN: substructure match failed; falling back to smoke", file=sys.stderr)
+            return Molecule.from_rdkit(canonical, allow_undefined_stereo=True)
+        canonical_to_pose = [0] * len(reverse_match)
+        for pose_idx, canonical_idx in enumerate(reverse_match):
+            canonical_to_pose[canonical_idx] = pose_idx
+
+    if len(canonical_to_pose) != canonical_noH.GetNumAtoms():
         print("  WARN: substructure match failed; falling back to smoke", file=sys.stderr)
         return Molecule.from_rdkit(canonical, allow_undefined_stereo=True)
 
-    # match[canonical_idx] = pose_atom_idx for the corresponding atom
+    # canonical_to_pose[canonical_idx] = pose_atom_idx for the corresponding atom.
     pose_conf = pose_with_bonds.GetConformer()
     canonical_conf = canonical.GetConformer()
-    for canonical_idx in range(len(match)):
-        pose_idx = match[canonical_idx]
+    for canonical_idx, pose_idx in enumerate(canonical_to_pose):
         p = pose_conf.GetAtomPosition(pose_idx)
         canonical_conf.SetAtomPosition(canonical_idx, p)
+
+    bad_bonds: list[tuple[int, int, float]] = []
+    for bond in canonical_noH.GetBonds():
+        atom_i = bond.GetBeginAtomIdx()
+        atom_j = bond.GetEndAtomIdx()
+        pos_i = canonical_conf.GetAtomPosition(atom_i)
+        pos_j = canonical_conf.GetAtomPosition(atom_j)
+        distance = math.dist((pos_i.x, pos_i.y, pos_i.z), (pos_j.x, pos_j.y, pos_j.z))
+        if distance < 0.90 or distance > 1.90:
+            bad_bonds.append((atom_i, atom_j, distance))
+    if bad_bonds:
+        preview = ", ".join(f"{i}-{j}:{d:.2f}A" for i, j, d in bad_bonds[:8])
+        raise RuntimeError(f"Bad grafted ligand geometry after atom mapping ({len(bad_bonds)} bonds): {preview}")
 
     # H positions are now stale — strip and re-add with new H coordinates
     canonical_heavy = Chem.RemoveHs(canonical)

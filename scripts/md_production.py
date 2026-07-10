@@ -357,7 +357,7 @@ def interval_steps(ps: float, timestep_fs: float) -> int:
 
 
 def build_simulation(config: dict[str, Any], root: Path, paths: dict[str, Any], run_dir: Path):
-    from openmm import MonteCarloBarostat, Platform, unit
+    from openmm import MonteCarloBarostat, Platform, XmlSerializer, unit
     from openmm.app import ForceField, HBonds, Modeller, PDBFile, PME, Simulation
     from openmmforcefields.generators import SMIRNOFFTemplateGenerator
     from pdbfixer import PDBFixer
@@ -452,6 +452,8 @@ def build_simulation(config: dict[str, Any], root: Path, paths: dict[str, Any], 
         float(deep_get(config, "simulation.timestep_fs", 2.0)) * unit.femtoseconds,
     )
     integrator.setRandomNumberSeed(int(deep_get(config, "run.seed", 1)))
+    (run_dir / "system.xml").write_text(XmlSerializer.serialize(system))
+    (run_dir / "integrator.xml").write_text(XmlSerializer.serialize(integrator))
 
     platform_name = deep_get(config, "platform.name", "CUDA")
     platform = Platform.getPlatformByName(platform_name)

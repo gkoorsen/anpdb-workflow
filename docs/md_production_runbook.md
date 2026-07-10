@@ -208,6 +208,8 @@ Each run writes to `md_runs/production/<target_compound>/repN/`, including:
 - `config.toml`
 - `plan.json`
 - `system_solvated.pdb`
+- `system.xml`
+- `integrator.xml`
 - `minimized.pdb`
 - `equilibrated.pdb`
 - `equilibrated_state.xml`

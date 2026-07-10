@@ -11,6 +11,7 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.matplotlib-cache/
 .venv/
 venv/
 env/
@@ -35,6 +36,7 @@ data/md_inputs/*
 !data/md_inputs/oprk1_orientation_manifest.json
 !data/md_inputs/poses/
 data/md_inputs/poses/*
+!data/md_inputs/poses/Mol_13144_7VSI_opm_oriented_out.pdbqt
 !data/md_inputs/poses/Mol_16614_4DJH_out.pdbqt
 !data/md_inputs/poses/Mol_16614_4DJH_opm_oriented_out.pdbqt
 !data/md_inputs/receptors/
@@ -61,6 +63,8 @@ data/md_inputs/cofactors/*
 output/*
 !output/README.md
 !output/.gitkeep
+results/manuscript_sections_2_1_2_3/
+hbdebug.dat
 
 # Long MD/GROMACS/OpenMM production artifacts
 runs/
