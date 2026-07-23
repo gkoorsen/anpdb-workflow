@@ -82,5 +82,9 @@ md_runs/
 *.xvg
 *.log
 
+# Locally generated cloud-transfer bundles (upload separately, do not commit).
+transfer/runpod/*.tar.gz
+transfer/runpod/*.tar.gz.sha256
+
 # Presentation/editor lock files
 ~$*

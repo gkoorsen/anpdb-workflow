@@ -56,6 +56,13 @@ PRODUCTION_GATES = {
     },
 }
 
+PROTOCOL_VERSION = "membrane-endpoint-v2"
+PROTEIN_RESNAMES = {
+    "ALA", "ARG", "ASN", "ASP", "ASH", "CYS", "CYX", "GLN", "GLU", "GLH",
+    "GLY", "HIS", "HID", "HIE", "HIP", "ILE", "LEU", "LYS", "LYN", "MET",
+    "PHE", "PRO", "SER", "THR", "TRP", "TYR", "VAL",
+}
+
 
 def fail(message: str) -> None:
     raise SystemExit(message)
@@ -357,7 +364,14 @@ def interval_steps(ps: float, timestep_fs: float) -> int:
 
 
 def build_simulation(config: dict[str, Any], root: Path, paths: dict[str, Any], run_dir: Path):
-    from openmm import MonteCarloBarostat, Platform, XmlSerializer, unit
+    from openmm import (
+        CustomExternalForce,
+        MonteCarloBarostat,
+        MonteCarloMembraneBarostat,
+        Platform,
+        XmlSerializer,
+        unit,
+    )
     from openmm.app import ForceField, HBonds, Modeller, PDBFile, PME, Simulation
     from openmmforcefields.generators import SMIRNOFFTemplateGenerator
     from pdbfixer import PDBFixer
@@ -438,12 +452,78 @@ def build_simulation(config: dict[str, Any], root: Path, paths: dict[str, Any], 
         removeCMMotion=bool(deep_get(config, "simulation.remove_cm_motion", False)),
         hydrogenMass=float(deep_get(config, "simulation.hydrogen_mass_amu", 4.0)) * unit.amu,
     )
-    system.addForce(
-        MonteCarloBarostat(
-            float(deep_get(config, "simulation.pressure_atm", 1.0)) * unit.atmospheres,
-            float(deep_get(config, "simulation.temperature_K", 310.0)) * unit.kelvin,
-            int(deep_get(config, "simulation.barostat_interval_steps", 25)),
+    pressure = float(deep_get(config, "simulation.pressure_atm", 1.0)) * unit.atmospheres
+    temperature = float(deep_get(config, "simulation.temperature_K", 310.0)) * unit.kelvin
+    barostat_interval = int(deep_get(config, "simulation.barostat_interval_steps", 25))
+    if environment == "membrane":
+        surface_tension = float(
+            deep_get(config, "system.membrane.surface_tension_bar_nm", 0.0)
+        ) * unit.bar * unit.nanometer
+        barostat = MonteCarloMembraneBarostat(
+            pressure,
+            surface_tension,
+            temperature,
+            MonteCarloMembraneBarostat.XYIsotropic,
+            MonteCarloMembraneBarostat.ZFree,
+            barostat_interval,
         )
+    else:
+        barostat = MonteCarloBarostat(pressure, temperature, barostat_interval)
+    system.addForce(barostat)
+
+    # A zero-valued restraint remains in the production System so checkpoints
+    # and endpoint-analysis metadata all refer to one unchanging System.
+    restraint = CustomExternalForce(
+        "0.5*equilibration_restraint_k*periodicdistance(x,y,z,x0,y0,z0)^2"
+    )
+    restraint.addGlobalParameter("equilibration_restraint_k", 0.0)
+    for coordinate in ("x0", "y0", "z0"):
+        restraint.addPerParticleParameter(coordinate)
+    ligand_resname = str(deep_get(config, "analysis.ligand_resname", "UNL"))
+    protein_backbone = {"N", "CA", "C", "O"}
+    restrained_indices: list[int] = []
+    ligand_indices: list[int] = []
+    receptor_indices: list[int] = []
+    environment_indices: list[int] = []
+    for atom in modeller.topology.atoms():
+        residue = atom.residue
+        if residue.name == ligand_resname:
+            ligand_indices.append(atom.index)
+            if atom.element is not None and atom.element.symbol != "H":
+                restrained_indices.append(atom.index)
+        elif residue.name in PROTEIN_RESNAMES:
+            receptor_indices.append(atom.index)
+            if atom.name in protein_backbone:
+                restrained_indices.append(atom.index)
+        else:
+            environment_indices.append(atom.index)
+    for index in restrained_indices:
+        position = modeller.positions[index].value_in_unit(unit.nanometer)
+        restraint.addParticle(index, [float(position[0]), float(position[1]), float(position[2])])
+    system.addForce(restraint)
+
+    if not ligand_indices:
+        fail(f"No ligand atoms found with analysis.ligand_resname={ligand_resname!r}")
+
+    write_json(
+        run_dir / "endpoint_analysis_manifest.json",
+        {
+            "protocol_version": PROTOCOL_VERSION,
+            "method_scope": "single-trajectory endpoint MM/GBSA or MM/PBSA",
+            "trajectory": "production.dcd",
+            "topology": "system_solvated.pdb",
+            "openmm_system": "system.xml",
+            "ligand_resname": ligand_resname,
+            "ligand_atom_indices_zero_based": ligand_indices,
+            "receptor_atom_indices_zero_based": receptor_indices,
+            "environment_atom_indices_zero_based": environment_indices,
+            "strip_for_endpoint_analysis": sorted(set(environment_indices)),
+            "notes": [
+                "Use identical snapshot selection and implicit-solvent settings for all ligands within a target.",
+                "For membrane proteins use a membrane-aware PB/GB protocol; plain aqueous PB/GB is only an approximation.",
+                "The OpenFF ligand parameters in system.xml must be retained consistently during endpoint energy evaluation.",
+            ],
+        },
     )
 
     integrator = LangevinMiddleIntegrator(
@@ -465,7 +545,43 @@ def build_simulation(config: dict[str, Any], root: Path, paths: dict[str, Any], 
         }
     sim = Simulation(modeller.topology, system, integrator, platform, properties)
     sim.context.setPositions(modeller.positions)
-    return sim, platform, properties
+    return sim, platform, properties, barostat, restraint, barostat_interval
+
+
+def load_saved_simulation(config: dict[str, Any], run_dir: Path):
+    """Recreate a Context from the exact serialized System used by a checkpoint."""
+    from openmm import MonteCarloBarostat, MonteCarloMembraneBarostat, Platform, XmlSerializer
+    from openmm.app import PDBFile, Simulation
+
+    required_paths = [
+        run_dir / "system_solvated.pdb",
+        run_dir / "system.xml",
+        run_dir / "integrator.xml",
+    ]
+    missing = [str(path) for path in required_paths if not path.exists()]
+    if missing:
+        fail("Cannot resume without exact serialized inputs:\n" + "\n".join(f"- {p}" for p in missing))
+
+    topology = PDBFile(str(run_dir / "system_solvated.pdb")).topology
+    system = XmlSerializer.deserialize((run_dir / "system.xml").read_text())
+    integrator = XmlSerializer.deserialize((run_dir / "integrator.xml").read_text())
+    platform_name = deep_get(config, "platform.name", "CUDA")
+    platform = Platform.getPlatformByName(platform_name)
+    properties = {}
+    if platform_name == "CUDA":
+        properties = {
+            "DeviceIndex": str(deep_get(config, "platform.device_index", "0")),
+            "Precision": str(deep_get(config, "platform.precision", "mixed")),
+        }
+    sim = Simulation(topology, system, integrator, platform, properties)
+    barostats = [
+        force
+        for force in system.getForces()
+        if isinstance(force, (MonteCarloBarostat, MonteCarloMembraneBarostat))
+    ]
+    if len(barostats) != 1:
+        fail(f"Expected exactly one barostat in saved System, found {len(barostats)}")
+    return sim, platform, properties, barostats[0]
 
 
 def add_reporters(config: dict[str, Any], sim, run_dir: Path, append: bool, production_final_step: int) -> None:
@@ -489,6 +605,8 @@ def add_reporters(config: dict[str, Any], sim, run_dir: Path, append: bool, prod
             kineticEnergy=True,
             totalEnergy=True,
             temperature=True,
+            volume=True,
+            density=True,
             speed=True,
             remainingTime=True,
             totalSteps=production_final_step,
@@ -503,50 +621,131 @@ def add_reporters(config: dict[str, Any], sim, run_dir: Path, append: bool, prod
     )
 
 
-def run_protocol(config: dict[str, Any], root: Path, paths: dict[str, Any], run_dir: Path, resume: bool, equilibrate_only: bool) -> None:
+def run_protocol(
+    config: dict[str, Any],
+    root: Path,
+    paths: dict[str, Any],
+    run_dir: Path,
+    resume: bool,
+    resume_state: bool,
+    equilibrate_only: bool,
+) -> None:
     import openmm
     from openmm import unit
-    from openmm.app import PDBFile
+    from openmm.app import PDBFile, StateDataReporter
 
-    sim, platform, properties = build_simulation(config, root, paths, run_dir)
+    def write_state_pdb(path: Path, state) -> None:
+        # PDBFile takes unit-cell dimensions from the Topology, not the State.
+        # Keep endpoint PDB metadata consistent with the checkpoint/state box.
+        sim.topology.setPeriodicBoxVectors(state.getPeriodicBoxVectors())
+        with path.open("w") as handle:
+            PDBFile.writeFile(sim.topology, state.getPositions(), handle)
+
     timestep_fs = float(deep_get(config, "simulation.timestep_fs", 2.0))
     production_steps = ns_to_steps(float(deep_get(config, "simulation.production_ns", 100.0)), timestep_fs)
 
     checkpoint = run_dir / "production.chk"
+    portable_state = run_dir / "equilibrated_state.xml"
     production_plan_path = run_dir / "production_plan.json"
-    resumed = resume and checkpoint.exists()
+    if resume and not checkpoint.exists():
+        fail(f"--resume requested but checkpoint is missing: {checkpoint}")
+    if resume_state and not portable_state.exists():
+        fail(f"--resume-state requested but portable state is missing: {portable_state}")
+    resumed = resume or resume_state
     if resumed:
         if not production_plan_path.exists():
             fail(f"Cannot resume without {production_plan_path}")
         production_plan = json.loads(production_plan_path.read_text())
+        if production_plan.get("protocol_version") != PROTOCOL_VERSION:
+            fail(
+                "The existing checkpoint was made by an obsolete protocol and cannot be resumed safely. "
+                "Archive the run directory and repeat equilibration with the corrected protocol."
+            )
+        sim, platform, properties, barostat = load_saved_simulation(config, run_dir)
+        barostat_interval = barostat.getFrequency()
+    else:
+        sim, platform, properties, barostat, _restraint, barostat_interval = build_simulation(
+            config, root, paths, run_dir
+        )
+    if resumed:
         production_start_step = int(production_plan["production_start_step"])
         production_final_step = int(production_plan["production_final_step"])
-        sim.loadCheckpoint(str(checkpoint))
-        append = (run_dir / "production.dcd").exists() and (run_dir / "production.log").exists()
+        if resume_state:
+            existing = [run_dir / "production.dcd", run_dir / "production.log"]
+            if any(path.exists() and path.stat().st_size for path in existing):
+                fail("--resume-state is only for a fresh portable production start; production output already exists")
+            sim.loadState(str(portable_state))
+            append = False
+        else:
+            sim.loadCheckpoint(str(checkpoint))
+            append = (run_dir / "production.dcd").exists() and (run_dir / "production.log").exists()
     else:
         min_iters = int(deep_get(config, "simulation.minimization_max_iterations", 5000))
         sim.minimizeEnergy(maxIterations=min_iters)
         state = sim.context.getState(getPositions=True)
-        PDBFile.writeFile(sim.topology, state.getPositions(), (run_dir / "minimized.pdb").open("w"))
+        write_state_pdb(run_dir / "minimized.pdb", state)
 
         sim.context.setVelocitiesToTemperature(
             float(deep_get(config, "simulation.temperature_K", 310.0)) * unit.kelvin,
             int(deep_get(config, "run.seed", 1)),
         )
-        nvt_ps = float(deep_get(config, "simulation.equilibration.nvt_ps", 250.0))
-        npt_ps = float(deep_get(config, "simulation.equilibration.npt_ps", 1000.0))
+        nvt_ps = float(deep_get(config, "simulation.equilibration.nvt_ps", 500.0))
+        restrained_npt_ps = float(
+            deep_get(config, "simulation.equilibration.restrained_npt_ps", 2000.0)
+        )
+        npt_ps = float(deep_get(config, "simulation.equilibration.npt_ps", 5000.0))
+        restraint_k = float(
+            deep_get(config, "simulation.equilibration.restraint_k_kj_mol_nm2", 1000.0)
+        )
+        equilibration_report_interval = interval_steps(
+            float(deep_get(config, "output.state_interval_ps", 50.0)), timestep_fs
+        )
+        sim.reporters.append(
+            StateDataReporter(
+                str(run_dir / "equilibration.log"),
+                equilibration_report_interval,
+                step=True,
+                time=True,
+                potentialEnergy=True,
+                kineticEnergy=True,
+                totalEnergy=True,
+                temperature=True,
+                volume=True,
+                density=True,
+            )
+        )
+        # True NVT: the barostat Force exists but attempts no box moves.
+        barostat.setFrequency(0)
+        sim.context.reinitialize(preserveState=True)
+        sim.context.setParameter("equilibration_restraint_k", restraint_k)
         if nvt_ps > 0:
+            print(f"Starting restrained NVT: {nvt_ps:.1f} ps", flush=True)
             sim.step(ps_to_steps(nvt_ps, timestep_fs))
+            print("Restrained NVT complete", flush=True)
+        # Restrained membrane NPT lets lipids and solvent relax around the pose.
+        barostat.setFrequency(barostat_interval)
+        sim.context.reinitialize(preserveState=True)
+        sim.context.setParameter("equilibration_restraint_k", restraint_k)
+        if restrained_npt_ps > 0:
+            print(f"Starting restrained membrane NPT: {restrained_npt_ps:.1f} ps", flush=True)
+            sim.step(ps_to_steps(restrained_npt_ps, timestep_fs))
+            print("Restrained membrane NPT complete", flush=True)
+        # Remove restraints before the final NPT stability segment and production.
+        sim.context.setParameter("equilibration_restraint_k", 0.0)
         if npt_ps > 0:
+            print(f"Starting unrestrained membrane NPT: {npt_ps:.1f} ps", flush=True)
             sim.step(ps_to_steps(npt_ps, timestep_fs))
+            print("Unrestrained membrane NPT complete", flush=True)
+        sim.reporters.clear()
         state = sim.context.getState(getPositions=True, getVelocities=True)
-        PDBFile.writeFile(sim.topology, state.getPositions(), (run_dir / "equilibrated.pdb").open("w"))
+        write_state_pdb(run_dir / "equilibrated.pdb", state)
         sim.saveState(str(run_dir / "equilibrated_state.xml"))
         production_start_step = int(sim.currentStep)
         production_final_step = production_start_step + production_steps
         write_json(
             production_plan_path,
             {
+                "protocol_version": PROTOCOL_VERSION,
                 "production_start_step": production_start_step,
                 "production_steps": production_steps,
                 "production_final_step": production_final_step,
@@ -558,6 +757,7 @@ def run_protocol(config: dict[str, Any], root: Path, paths: dict[str, Any], run_
         write_json(
             run_dir / "equilibration_manifest.json",
             {
+                "protocol_version": PROTOCOL_VERSION,
                 "completed_utc": datetime.now(timezone.utc).isoformat(),
                 "python": sys.version.split()[0],
                 "openmm": openmm.version.version,
@@ -572,7 +772,11 @@ def run_protocol(config: dict[str, Any], root: Path, paths: dict[str, Any], run_
                 "platform_properties": properties,
                 "minimization_max_iterations": min_iters,
                 "nvt_ps": nvt_ps,
+                "restrained_npt_ps": restrained_npt_ps,
                 "npt_ps": npt_ps,
+                "restraint_k_kj_mol_nm2": restraint_k,
+                "barostat": type(barostat).__name__,
+                "barostat_interval_steps": barostat_interval,
                 "timestep_fs": timestep_fs,
                 "production_start_step": production_start_step,
                 "production_checkpoint": str(checkpoint),
@@ -594,12 +798,13 @@ def run_protocol(config: dict[str, Any], root: Path, paths: dict[str, Any], run_
         sim.step(remaining)
 
     state = sim.context.getState(getPositions=True, getVelocities=True)
-    PDBFile.writeFile(sim.topology, state.getPositions(), (run_dir / "final.pdb").open("w"))
+    write_state_pdb(run_dir / "final.pdb", state)
     sim.saveState(str(run_dir / "final_state.xml"))
 
     write_json(
         run_dir / "run_manifest.json",
         {
+            "protocol_version": PROTOCOL_VERSION,
             "completed_utc": datetime.now(timezone.utc).isoformat(),
             "python": sys.version.split()[0],
             "openmm": openmm.version.version,
@@ -616,7 +821,8 @@ def run_protocol(config: dict[str, Any], root: Path, paths: dict[str, Any], run_
             "timestep_fs": timestep_fs,
             "production_start_step": production_start_step,
             "production_final_step": production_final_step,
-            "resumed": resumed,
+                "resumed": resumed,
+                "resume_source": "portable_state_xml" if resume_state else ("checkpoint" if resume else "new"),
         },
     )
 
@@ -625,12 +831,19 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", required=True, type=Path)
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument(
+        "--resume-state",
+        action="store_true",
+        help="Start production from equilibrated_state.xml; portable across GPU hosts and only valid before production output exists.",
+    )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--equilibrate-only", action="store_true", help="Run minimization/equilibration, write a production-start checkpoint, then stop.")
     parser.add_argument("--allow-non-production", action="store_true")
     args = parser.parse_args()
-    if args.equilibrate_only and args.resume:
-        fail("Use --equilibrate-only without --resume. After inspection, run production with --resume.")
+    if args.resume and args.resume_state:
+        fail("Choose either --resume (binary checkpoint) or --resume-state (portable XML), not both.")
+    if args.equilibrate_only and (args.resume or args.resume_state):
+        fail("Use --equilibrate-only without a resume option.")
 
     config_path = args.config.resolve()
     config = load_config(config_path)
@@ -670,7 +883,15 @@ def main() -> int:
             "argv": sys.argv,
         },
     )
-    run_protocol(config, root, paths, run_dir, resume=args.resume, equilibrate_only=args.equilibrate_only)
+    run_protocol(
+        config,
+        root,
+        paths,
+        run_dir,
+        resume=args.resume,
+        resume_state=args.resume_state,
+        equilibrate_only=args.equilibrate_only,
+    )
     print(f"Finished in {(time.time() - started) / 3600:.2f} h")
     return 0
 
