@@ -40,6 +40,8 @@ If CUDA is unavailable, fix the NVIDIA driver/WSL/CUDA/OpenMM stack before runni
 For the portable SGLT2 Mol_13144 replicate-2 RunPod workflow, including the
 transfer-package builder and cross-GPU XML-state restart, see
 [`docs/runpod_sglt2_rep2.md`](runpod_sglt2_rep2.md).
+The sequential portable workflow for SGLT2 Mol_13733 replicates 1–3 is in
+[`docs/runpod_sglt2_mol13733.md`](runpod_sglt2_mol13733.md).
 
 ## Input Bundle
 
