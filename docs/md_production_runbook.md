@@ -37,6 +37,14 @@ python scripts/check_openmm_cuda.py --device-index 0 --precision mixed
 
 If CUDA is unavailable, fix the NVIDIA driver/WSL/CUDA/OpenMM stack before running production configs.
 
+For the portable SGLT2 Mol_13144 replicate-2 RunPod workflow, including the
+transfer-package builder and cross-GPU XML-state restart, see
+[`docs/runpod_sglt2_rep2.md`](runpod_sglt2_rep2.md).
+The sequential portable workflow for SGLT2 Mol_13733 replicates 1–3 is in
+[`docs/runpod_sglt2_mol13733.md`](runpod_sglt2_mol13733.md).
+The queued portable workflow for SGLT2 Mol_15088 replicates 2–3 is in
+[`docs/runpod_sglt2_mol15088_reps2-3.md`](runpod_sglt2_mol15088_reps2-3.md).
+
 ## Input Bundle
 
 Stage ignored inputs under `data/md_inputs/` on the GPU machine. If you have copied the current local `output/` and `data/` folders onto that machine, start with:
@@ -146,6 +154,27 @@ python scripts/md_production_amber.py --config configs/md/amber_production/maob_
 ```
 
 ## Running
+
+### Corrected primary membrane protocol
+
+The 12 primary SGLT2/OPRK1 simulations use protocol
+`membrane-endpoint-v2`: true restrained NVT with pressure coupling disabled,
+restrained membrane NPT, unrestrained membrane NPT, and production with an
+XY-isotropic/Z-free `MonteCarloMembraneBarostat` at zero surface tension.
+The production DCD, solvated PDB, serialized OpenMM System, and
+`endpoint_analysis_manifest.json` support a consistent single-trajectory
+MM/GBSA or membrane-aware MM/PBSA workflow.
+
+```bash
+scripts/run_primary_membrane_productions.sh --preflight
+scripts/run_primary_membrane_productions.sh --equilibrate --archive-obsolete
+# Inspect the corrected equilibrated structures and manifests, then:
+scripts/run_primary_membrane_productions.sh --produce
+```
+
+The launcher refuses old isotropic-barostat checkpoints. The archive option
+moves them into `md_runs/obsolete_protocol/<timestamp>/` before rebuilding.
+Pass `--python /path/to/env/bin/python` on non-WSL systems if needed.
 
 For the corrected primary membrane reruns on RunPod/Linux or WSL, use the
 pending-equilibration launcher. It runs SGLT2/Mol_13144, SGLT2/Mol_13733,
