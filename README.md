@@ -28,5 +28,6 @@ See `docs/repo_bootstrap.md` for GitHub and WSL setup notes.
 See `docs/md_production_runbook.md` for production MD setup, GPU checks, input staging, run commands, resume behavior, and analysis.
 For the portable SGLT2 Mol_13144 replicate-2 cloud workflow, see `docs/runpod_sglt2_rep2.md`.
 For sequential RunPod production of SGLT2 Mol_13733 replicates 1–3, see `docs/runpod_sglt2_mol13733.md`.
+For queued RunPod production of SGLT2 Mol_15088 replicates 2–3, see `docs/runpod_sglt2_mol15088_reps2-3.md`.
 For CYP1B1 heme and MAO-B covalent FAD preparation, see `docs/cofactor_parameterization.md`; the repo supports running curated Amber `prmtop/inpcrd` systems directly through OpenMM. The CYP1B1 and MAO-B Amber systems can be generated with `scripts/md_build_amber_systems.py`.
 Curated Amber production inputs under `data/md_inputs/amber_systems/` are tracked with Git LFS.

@@ -42,6 +42,8 @@ transfer-package builder and cross-GPU XML-state restart, see
 [`docs/runpod_sglt2_rep2.md`](runpod_sglt2_rep2.md).
 The sequential portable workflow for SGLT2 Mol_13733 replicates 1–3 is in
 [`docs/runpod_sglt2_mol13733.md`](runpod_sglt2_mol13733.md).
+The queued portable workflow for SGLT2 Mol_15088 replicates 2–3 is in
+[`docs/runpod_sglt2_mol15088_reps2-3.md`](runpod_sglt2_mol15088_reps2-3.md).
 
 ## Input Bundle
 
