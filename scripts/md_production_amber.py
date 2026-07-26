@@ -198,6 +198,8 @@ def add_reporters(config: dict[str, Any], sim, run_dir: Path, append: bool, prod
             kineticEnergy=True,
             totalEnergy=True,
             temperature=True,
+            volume=True,
+            density=True,
             speed=True,
             remainingTime=True,
             totalSteps=production_final_step,
