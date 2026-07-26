@@ -34,6 +34,7 @@ LIPID_RESNAMES = {
     "POP", "POPC", "POPE", "POPG", "POPS", "POPA", "DPPC", "DOPC", "CHL", "CHL1",
 }
 COFACTOR_RESNAMES = {"HEM", "HEME", "FAD", "FMN", "NAD", "NAP"}
+REPO_ROOT = Path(__file__).resolve().parents[1]
 STATE_LOG_COLUMNS = {
     "Step": "step",
     "Time (ps)": "time_ps",
@@ -78,6 +79,17 @@ def ligand_indices(topology, ligand_resname: str | None) -> np.ndarray:
             f"No ligand atoms found with residue name {ligand_resname}. "
             f"Detected non-environment residue names: {detected}"
         )
+    for preferred_name in ("LIG", "UNL", "UNK"):
+        preferred = np.array(
+            [
+                atom.index
+                for atom in topology.atoms
+                if atom.residue.name == preferred_name
+            ],
+            dtype=int,
+        )
+        if len(preferred) > 0:
+            return preferred
     excluded = SOLVENT_ION_RESNAMES | LIPID_RESNAMES | COFACTOR_RESNAMES
     indices = np.array(
         [
@@ -137,8 +149,262 @@ def finite_or_none(value: object) -> float | None:
     return number if math.isfinite(number) else None
 
 
-def protein_anchor_molecules(topology) -> list[set]:
-    protein_atom_indices = set(int(index) for index in topology.select("protein"))
+def parameterized_bond_pairs(
+    run_dir: Path,
+    topology,
+) -> tuple[np.ndarray, str]:
+    system_xml = run_dir / "system.xml"
+    if system_xml.exists():
+        from openmm import HarmonicBondForce, XmlSerializer
+
+        system = XmlSerializer.deserialize(system_xml.read_text())
+        if system.getNumParticles() != topology.n_atoms:
+            raise SystemExit(
+                "system.xml particle count does not match the trajectory topology: "
+                f"{system.getNumParticles()} != {topology.n_atoms}"
+            )
+        pairs: set[tuple[int, int]] = set()
+        for force in system.getForces():
+            if not isinstance(force, HarmonicBondForce):
+                continue
+            for index in range(force.getNumBonds()):
+                atom1, atom2, _length, _k = force.getBondParameters(index)
+                pairs.add(tuple(sorted((int(atom1), int(atom2)))))
+        for index in range(system.getNumConstraints()):
+            atom1, atom2, _distance = system.getConstraintParameters(index)
+            pairs.add(tuple(sorted((int(atom1), int(atom2)))))
+        if not pairs:
+            raise SystemExit(f"No parameterized bonds found in {system_xml}")
+        return np.array(sorted(pairs), dtype=int), "system.xml"
+
+    config_path = run_dir / "config.toml"
+    if config_path.exists():
+        config = tomllib.loads(config_path.read_text())
+        prmtop_value = config.get("input", {}).get("prmtop")
+        if prmtop_value:
+            from openmm.app import AmberPrmtopFile
+
+            prmtop_path = Path(str(prmtop_value))
+            if not prmtop_path.is_absolute():
+                prmtop_path = REPO_ROOT / prmtop_path
+            if not prmtop_path.exists():
+                raise SystemExit(
+                    f"Amber topology configured for {run_dir} is missing: {prmtop_path}"
+                )
+            amber_topology = AmberPrmtopFile(str(prmtop_path)).topology
+            amber_atoms = list(amber_topology.atoms())
+            if len(amber_atoms) != topology.n_atoms:
+                raise SystemExit(
+                    "Amber topology atom count does not match the trajectory topology: "
+                    f"{len(amber_atoms)} != {topology.n_atoms}"
+                )
+            pairs = {
+                tuple(sorted((atom1.index, atom2.index)))
+                for atom1, atom2 in amber_topology.bonds()
+            }
+            if not pairs:
+                raise SystemExit(f"No bonds found in Amber topology {prmtop_path}")
+            return np.array(sorted(pairs), dtype=int), f"Amber prmtop: {prmtop_path}"
+
+    raise SystemExit(
+        f"No parameterized bond source found for {run_dir}. Expected system.xml "
+        "or an Amber prmtop declared in config.toml."
+    )
+
+
+def topology_with_parameterized_bonds(topology, bond_pairs: np.ndarray):
+    import mdtraj as md
+
+    rebuilt = md.Topology()
+    atom_map = {}
+    for chain in topology.chains:
+        new_chain = rebuilt.add_chain(chain.chain_id)
+        for residue in chain.residues:
+            new_residue = rebuilt.add_residue(
+                residue.name,
+                new_chain,
+                resSeq=residue.resSeq,
+                segment_id=residue.segment_id,
+            )
+            for atom in residue.atoms:
+                new_atom = rebuilt.add_atom(
+                    atom.name,
+                    atom.element,
+                    new_residue,
+                    serial=atom.serial,
+                )
+                atom_map[atom.index] = new_atom
+    if len(atom_map) != topology.n_atoms:
+        raise SystemExit("Failed to preserve atom ordering while rebuilding topology.")
+    for atom1, atom2 in bond_pairs:
+        rebuilt.add_bond(atom_map[int(atom1)], atom_map[int(atom2)])
+    return rebuilt
+
+
+def alignment_core_indices(
+    traj,
+    requested_mode: str,
+    custom_selection: str | None,
+    membrane_core_half_thickness_nm: float,
+    out_dir: Path,
+    excluded_indices: np.ndarray | None = None,
+) -> tuple[np.ndarray, dict[str, object]]:
+    top = traj.topology
+    excluded = {
+        int(index)
+        for index in (
+            excluded_indices
+            if excluded_indices is not None
+            else np.array([], dtype=int)
+        )
+    }
+    lipid_heavy = np.array(
+        [
+            atom.index
+            for atom in top.atoms
+            if atom.residue.name in LIPID_RESNAMES
+            and atom.element is not None
+            and atom.element.symbol != "H"
+        ],
+        dtype=int,
+    )
+    membrane_center_z_nm = None
+    if len(lipid_heavy) > 0:
+        membrane_center_z_nm = float(traj.xyz[0, lipid_heavy, 2].mean())
+    frame0_dssp = None
+
+    if custom_selection:
+        indices = np.array(
+            [
+                int(index)
+                for index in top.select(custom_selection)
+                if int(index) not in excluded
+            ],
+            dtype=int,
+        )
+        effective_mode = "custom"
+        definition = custom_selection
+    else:
+        effective_mode = requested_mode
+        if requested_mode == "auto":
+            effective_mode = (
+                "membrane-core-ca"
+                if membrane_center_z_nm is not None
+                else "global-backbone"
+            )
+        if effective_mode == "membrane-core-ca":
+            if membrane_center_z_nm is None:
+                raise SystemExit(
+                    "Membrane-core alignment requested, but no lipid atoms were found."
+                )
+            import mdtraj as md
+
+            frame0_dssp = md.compute_dssp(traj[0], simplified=True)[0]
+            protein_ca = np.array(
+                [
+                    int(index)
+                    for index in top.select("protein and name CA")
+                    if int(index) not in excluded
+                ],
+                dtype=int,
+            )
+            relative_z = traj.xyz[0, protein_ca, 2] - membrane_center_z_nm
+            indices = protein_ca[
+                (np.abs(relative_z) <= membrane_core_half_thickness_nm)
+                & np.array(
+                    [
+                        frame0_dssp[
+                            top.atom(int(index)).residue.index
+                        ] == "H"
+                        for index in protein_ca
+                    ],
+                    dtype=bool,
+                )
+            ]
+            definition = (
+                "frame-0 alpha-helical protein C-alpha atoms with z coordinate "
+                f"within {membrane_core_half_thickness_nm:.2f} nm of the "
+                "lipid-center z"
+            )
+        elif effective_mode == "global-backbone":
+            indices = np.array(
+                [
+                    int(index)
+                    for index in top.select("protein and backbone")
+                    if int(index) not in excluded
+                ],
+                dtype=int,
+            )
+            definition = "all protein backbone atoms"
+        else:
+            raise SystemExit(f"Unsupported alignment mode: {effective_mode}")
+
+    minimum_atoms = 20 if effective_mode == "membrane-core-ca" else 3
+    if len(indices) < minimum_atoms:
+        raise SystemExit(
+            f"Alignment core contains only {len(indices)} atoms; "
+            f"at least {minimum_atoms} are required."
+        )
+
+    residue_labels = []
+    rows = []
+    for index in indices:
+        atom = top.atom(int(index))
+        residue = atom.residue
+        label = f"chain{residue.chain.index}:{residue.name}{residue.resSeq}"
+        residue_labels.append(label)
+        rows.append(
+            {
+                "atom_index": int(index),
+                "atom_name": atom.name,
+                "residue": label,
+                "frame0_secondary_structure": (
+                    frame0_dssp[residue.index]
+                    if frame0_dssp is not None
+                    else None
+                ),
+                "frame0_z_nm": float(traj.xyz[0, int(index), 2]),
+                "frame0_z_from_membrane_center_nm": (
+                    float(traj.xyz[0, int(index), 2] - membrane_center_z_nm)
+                    if membrane_center_z_nm is not None
+                    else None
+                ),
+            }
+        )
+    pd.DataFrame(rows).to_csv(out_dir / "alignment_core_atoms.csv", index=False)
+    metadata = {
+        "requested_mode": requested_mode,
+        "effective_mode": effective_mode,
+        "definition": definition,
+        "atom_count": int(len(indices)),
+        "residue_count": int(len(set(residue_labels))),
+        "membrane_center_z_nm": membrane_center_z_nm,
+        "membrane_core_half_thickness_nm": (
+            membrane_core_half_thickness_nm
+            if effective_mode == "membrane-core-ca"
+            else None
+        ),
+    }
+    return np.asarray(indices, dtype=int), metadata
+
+
+def protein_anchor_molecules(
+    topology,
+    excluded_indices: np.ndarray | None = None,
+) -> list[set]:
+    excluded = {
+        int(index)
+        for index in (
+            excluded_indices
+            if excluded_indices is not None
+            else np.array([], dtype=int)
+        )
+    }
+    protein_atom_indices = {
+        int(index)
+        for index in topology.select("protein")
+        if int(index) not in excluded
+    }
     anchors = [
         molecule
         for molecule in topology.find_molecules()
@@ -149,14 +415,17 @@ def protein_anchor_molecules(topology) -> list[set]:
     return anchors
 
 
-def image_trajectory(traj):
+def image_trajectory(traj, excluded_anchor_indices: np.ndarray | None = None):
     if traj.unitcell_vectors is None:
         return traj[:]
     vectors = np.asarray(traj.unitcell_vectors)
     if vectors.size == 0 or not np.isfinite(vectors).all():
         return traj[:]
     return traj.image_molecules(
-        anchor_molecules=protein_anchor_molecules(traj.topology),
+        anchor_molecules=protein_anchor_molecules(
+            traj.topology,
+            excluded_anchor_indices,
+        ),
         inplace=False,
     )
 
@@ -192,6 +461,8 @@ def internal_rmsd_A(traj, indices: np.ndarray) -> np.ndarray:
 def analyze_ligand_geometry(
     traj,
     ligand_heavy: np.ndarray,
+    parameterized_bonds: np.ndarray,
+    bond_source: str,
     times_ns: np.ndarray,
     out_dir: Path,
     lower_distance_A: float = 0.8,
@@ -202,16 +473,32 @@ def analyze_ligand_geometry(
     ligand_set = set(int(index) for index in ligand_heavy)
     bond_pairs = np.array(
         [
-            [bond.atom1.index, bond.atom2.index]
-            for bond in traj.topology.bonds
-            if bond.atom1.index in ligand_set and bond.atom2.index in ligand_set
+            [int(atom1), int(atom2)]
+            for atom1, atom2 in parameterized_bonds
+            if int(atom1) in ligand_set and int(atom2) in ligand_set
         ],
         dtype=int,
     )
+    pdb_pairs = {
+        tuple(sorted((bond.atom1.index, bond.atom2.index)))
+        for bond in traj.topology.bonds
+        if bond.atom1.index in ligand_set and bond.atom2.index in ligand_set
+    }
+    parameterized_pairs = {
+        tuple(sorted((int(atom1), int(atom2))))
+        for atom1, atom2 in bond_pairs
+    }
     if bond_pairs.size == 0:
         return {
+            "bond_source": bond_source,
             "heavy_atom_bonds": 0,
             "frames_with_implausible_heavy_atom_bond": None,
+            "pdb_bonds_missing_from_parameterized_graph": len(
+                pdb_pairs - parameterized_pairs
+            ),
+            "parameterized_bonds_missing_from_pdb_graph": len(
+                parameterized_pairs - pdb_pairs
+            ),
             "lower_distance_A": lower_distance_A,
             "upper_distance_A": upper_distance_A,
         }
@@ -254,7 +541,15 @@ def analyze_ligand_geometry(
         index=False,
     )
     return {
+        "bond_source": bond_source,
         "heavy_atom_bonds": int(len(bond_pairs)),
+        "pdb_heavy_atom_bonds": int(len(pdb_pairs)),
+        "pdb_bonds_missing_from_parameterized_graph": int(
+            len(pdb_pairs - parameterized_pairs)
+        ),
+        "parameterized_bonds_missing_from_pdb_graph": int(
+            len(parameterized_pairs - pdb_pairs)
+        ),
         "frames_with_implausible_heavy_atom_bond": int(
             np.any(implausible, axis=1).sum()
         ),
@@ -516,9 +811,23 @@ def main() -> int:
     parser.add_argument("--stride", type=int, default=1)
     parser.add_argument("--contact-cutoff-nm", type=float, default=0.4)
     parser.add_argument(
+        "--alignment-mode",
+        choices=("auto", "membrane-core-ca", "global-backbone"),
+        default="auto",
+        help=(
+            "Auto uses a membrane-slab helical C-alpha core when lipids are present "
+            "and all protein backbone atoms otherwise."
+        ),
+    )
+    parser.add_argument(
         "--alignment-selection",
-        default="protein and backbone",
-        help="MDTraj selection used to align every frame to production frame 0.",
+        help="Optional MDTraj selection overriding --alignment-mode.",
+    )
+    parser.add_argument(
+        "--membrane-core-half-thickness-nm",
+        type=float,
+        default=1.5,
+        help="Half-thickness of the membrane slab used for C-alpha core selection.",
     )
     parser.add_argument(
         "--write-imaged",
@@ -536,16 +845,37 @@ def main() -> int:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     raw_traj = md.load(str(trajectory_path), top=str(topology_path), stride=args.stride)
-    traj = image_trajectory(raw_traj)
+    raw_ligand_indices = ligand_indices(raw_traj.topology, args.ligand_resname)
+    traj = image_trajectory(
+        raw_traj,
+        excluded_anchor_indices=raw_ligand_indices,
+    )
     top = traj.topology
-    protein_backbone = top.select("protein and backbone")
+    lig_idx = ligand_indices(top, args.ligand_resname)
+    lig_set = {int(index) for index in lig_idx}
+    protein_backbone = np.array(
+        [
+            int(index)
+            for index in top.select("protein and backbone")
+            if int(index) not in lig_set
+        ],
+        dtype=int,
+    )
     if len(protein_backbone) == 0:
         raise SystemExit("No protein backbone atoms found.")
-    alignment_indices = top.select(args.alignment_selection)
-    if len(alignment_indices) == 0:
-        raise SystemExit(
-            f"Alignment selection matched no atoms: {args.alignment_selection}"
-        )
+    parameterized_bonds, bond_source = parameterized_bond_pairs(run_dir, top)
+    parameterized_topology = topology_with_parameterized_bonds(
+        top,
+        parameterized_bonds,
+    )
+    alignment_indices, alignment_metadata = alignment_core_indices(
+        traj,
+        args.alignment_mode,
+        args.alignment_selection,
+        args.membrane_core_half_thickness_nm,
+        out_dir,
+        excluded_indices=lig_idx,
+    )
 
     traj.superpose(traj, frame=0, atom_indices=alignment_indices)
     if args.write_imaged:
@@ -553,8 +883,8 @@ def main() -> int:
         traj.save_dcd(str(out_dir / f"production_pbc_imaged_aligned{suffix}.dcd"))
     times_ns = trajectory_times_ns(run_dir, traj, args.stride)
     backbone_rmsd = coordinate_rmsd_A(traj, protein_backbone)
+    protein_core_rmsd = coordinate_rmsd_A(traj, alignment_indices)
 
-    lig_idx = ligand_indices(top, args.ligand_resname)
     ligand_heavy = heavy_indices(top, lig_idx)
     if len(ligand_heavy) == 0:
         raise SystemExit("The selected ligand contains no heavy atoms.")
@@ -563,6 +893,8 @@ def main() -> int:
     ligand_geometry_qc = analyze_ligand_geometry(
         traj,
         ligand_heavy,
+        parameterized_bonds,
+        bond_source,
         times_ns,
         out_dir,
     )
@@ -570,6 +902,7 @@ def main() -> int:
     rmsd_df = pd.DataFrame(
         {
             "time_ns": times_ns,
+            "protein_core_rmsd_A": protein_core_rmsd,
             "backbone_rmsd_A": backbone_rmsd,
             "ligand_pose_rmsd_A": ligand_pose_rmsd,
             "ligand_internal_rmsd_A": ligand_internal_rmsd,
@@ -594,7 +927,6 @@ def main() -> int:
     pose_df = pd.DataFrame()
     hbonds_df = pd.DataFrame()
     if len(lig_idx) > 0:
-        lig_set = {int(idx) for idx in lig_idx}
         protein_all = np.array(
             [
                 atom.index
@@ -646,8 +978,13 @@ def main() -> int:
         pose_df.insert(0, "time_ns", times_ns)
         pose_df.to_csv(out_dir / "pose_retention_timeseries.csv", index=False)
 
+        parameterized_traj = md.Trajectory(
+            traj.xyz,
+            parameterized_topology,
+            time=traj.time,
+        )
         compact_indices = np.concatenate([protein_all, lig_idx])
-        compact = traj.atom_slice(compact_indices)
+        compact = parameterized_traj.atom_slice(compact_indices)
         compact_ligand = np.arange(len(protein_all), len(compact_indices), dtype=int)
         hbonds_df = ligand_protein_hbonds(compact, compact_ligand)
         hbonds_df.to_csv(out_dir / "ligand_protein_hbond_occupancy.csv", index=False)
@@ -663,6 +1000,9 @@ def main() -> int:
         "backbone_rmsd_A_final": float(backbone_rmsd[-1]),
         "backbone_rmsd_A_mean": float(backbone_rmsd.mean()),
         "backbone_rmsd_A_max": float(backbone_rmsd.max()),
+        "protein_core_rmsd_A_final": float(protein_core_rmsd[-1]),
+        "protein_core_rmsd_A_mean": float(protein_core_rmsd.mean()),
+        "protein_core_rmsd_A_max": float(protein_core_rmsd.max()),
         "ligand_atoms": int(len(lig_idx)),
         "ligand_heavy_atoms": int(len(ligand_heavy)),
         "ligand_pose_rmsd_A_final": float(ligand_pose_rmsd[-1]),
@@ -673,7 +1013,7 @@ def main() -> int:
         "ligand_internal_rmsd_A_max": float(ligand_internal_rmsd.max()),
         "ligand_geometry_qc": ligand_geometry_qc,
         "pbc_imaging_applied": bool(raw_traj.unitcell_vectors is not None),
-        "alignment_selection": args.alignment_selection,
+        "alignment_core": alignment_metadata,
         "contact_cutoff_nm": args.contact_cutoff_nm,
         "n_contact_residues": int(len(contact_df)),
         "ligand_com_displacement_A_final": finite_or_none(

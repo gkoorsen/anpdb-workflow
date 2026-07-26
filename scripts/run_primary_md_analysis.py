@@ -57,6 +57,8 @@ def require_run_inputs(run: Run) -> None:
         run.run_dir / "config.toml",
         run.run_dir / "run_manifest.json",
     ]
+    if run.corrected:
+        required.append(run.run_dir / "system.xml")
     missing = [path for path in required if not path.exists()]
     if missing:
         details = "\n".join(f"  - {path}" for path in missing)
