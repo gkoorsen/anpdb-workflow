@@ -5,7 +5,11 @@ Outputs:
   analysis/rmsf_ca.csv
   analysis/contact_occupancy.csv
   analysis/pose_retention_timeseries.csv
-  analysis/ligand_protein_hbond_candidates.csv
+  analysis/ligand_geometry_timeseries.csv
+  analysis/ligand_geometry_bonds.csv
+  analysis/ligand_protein_hbond_occupancy.csv
+  analysis/thermodynamic_timeseries.csv
+  analysis/thermodynamic_qc_summary.json
   analysis/analysis_summary.json
 """
 
@@ -13,7 +17,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 from pathlib import Path
+import tomllib
 
 import numpy as np
 import pandas as pd
@@ -28,6 +34,17 @@ LIPID_RESNAMES = {
     "POP", "POPC", "POPE", "POPG", "POPS", "POPA", "DPPC", "DOPC", "CHL", "CHL1",
 }
 COFACTOR_RESNAMES = {"HEM", "HEME", "FAD", "FMN", "NAD", "NAP"}
+STATE_LOG_COLUMNS = {
+    "Step": "step",
+    "Time (ps)": "time_ps",
+    "Potential Energy (kJ/mole)": "potential_energy_kJ_mol",
+    "Kinetic Energy (kJ/mole)": "kinetic_energy_kJ_mol",
+    "Total Energy (kJ/mole)": "total_energy_kJ_mol",
+    "Temperature (K)": "temperature_K",
+    "Box Volume (nm^3)": "volume_nm3",
+    "Density (g/mL)": "density_g_mL",
+    "Speed (ns/day)": "speed_ns_day",
+}
 
 
 def atom_indices_excluding(topology, excluded_resnames: set[str]) -> np.ndarray:
@@ -43,12 +60,26 @@ def atom_indices_excluding(topology, excluded_resnames: set[str]) -> np.ndarray:
 
 def ligand_indices(topology, ligand_resname: str | None) -> np.ndarray:
     if ligand_resname:
-        return np.array(
+        indices = np.array(
             [atom.index for atom in topology.atoms if atom.residue.name == ligand_resname],
             dtype=int,
         )
+        if len(indices) > 0:
+            return indices
+        detected = sorted(
+            {
+                atom.residue.name
+                for atom in topology.atoms
+                if not atom.residue.is_protein
+                and atom.residue.name not in SOLVENT_ION_RESNAMES | LIPID_RESNAMES | COFACTOR_RESNAMES
+            }
+        )
+        raise SystemExit(
+            f"No ligand atoms found with residue name {ligand_resname}. "
+            f"Detected non-environment residue names: {detected}"
+        )
     excluded = SOLVENT_ION_RESNAMES | LIPID_RESNAMES | COFACTOR_RESNAMES
-    return np.array(
+    indices = np.array(
         [
             atom.index
             for atom in topology.atoms
@@ -56,6 +87,18 @@ def ligand_indices(topology, ligand_resname: str | None) -> np.ndarray:
         ],
         dtype=int,
     )
+    if len(indices) == 0:
+        raise SystemExit("No ligand atoms could be detected automatically.")
+    residue_names = {
+        topology.atom(int(index)).residue.name
+        for index in indices
+    }
+    if len(residue_names) != 1:
+        raise SystemExit(
+            "Automatic ligand detection found multiple residue names "
+            f"{sorted(residue_names)}; pass --ligand-resname explicitly."
+        )
+    return indices
 
 
 def trajectory_times_ns(run_dir: Path, traj, stride: int) -> np.ndarray:
@@ -86,14 +129,230 @@ def heavy_indices(topology, indices: np.ndarray) -> np.ndarray:
     )
 
 
-def atom_com(xyz: np.ndarray, indices: np.ndarray) -> np.ndarray:
-    return xyz[:, indices, :].mean(axis=1)
+def finite_or_none(value: object) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def protein_anchor_molecules(topology) -> list[set]:
+    protein_atom_indices = set(int(index) for index in topology.select("protein"))
+    anchors = [
+        molecule
+        for molecule in topology.find_molecules()
+        if any(atom.index in protein_atom_indices for atom in molecule)
+    ]
+    if not anchors:
+        raise SystemExit("No protein molecule found for PBC imaging.")
+    return anchors
+
+
+def image_trajectory(traj):
+    if traj.unitcell_vectors is None:
+        return traj[:]
+    vectors = np.asarray(traj.unitcell_vectors)
+    if vectors.size == 0 or not np.isfinite(vectors).all():
+        return traj[:]
+    return traj.image_molecules(
+        anchor_molecules=protein_anchor_molecules(traj.topology),
+        inplace=False,
+    )
+
+
+def atom_com(traj, indices: np.ndarray) -> np.ndarray:
+    masses = np.array(
+        [
+            float(traj.topology.atom(int(index)).element.mass)
+            if traj.topology.atom(int(index)).element is not None
+            else 0.0
+            for index in indices
+        ],
+        dtype=float,
+    )
+    if not np.isfinite(masses).all() or masses.sum() <= 0:
+        return traj.xyz[:, indices, :].mean(axis=1)
+    return np.average(traj.xyz[:, indices, :], axis=1, weights=masses)
+
+
+def coordinate_rmsd_A(traj, indices: np.ndarray, reference_frame: int = 0) -> np.ndarray:
+    reference = traj.xyz[reference_frame, indices, :]
+    deltas = traj.xyz[:, indices, :] - reference[None, :, :]
+    return np.sqrt(np.mean(np.sum(deltas * deltas, axis=2), axis=1)) * 10.0
+
+
+def internal_rmsd_A(traj, indices: np.ndarray) -> np.ndarray:
+    import mdtraj as md
+
+    ligand = traj.atom_slice(indices)
+    return md.rmsd(ligand, ligand, frame=0) * 10.0
+
+
+def analyze_ligand_geometry(
+    traj,
+    ligand_heavy: np.ndarray,
+    times_ns: np.ndarray,
+    out_dir: Path,
+    lower_distance_A: float = 0.8,
+    upper_distance_A: float = 2.2,
+) -> dict[str, object]:
+    import mdtraj as md
+
+    ligand_set = set(int(index) for index in ligand_heavy)
+    bond_pairs = np.array(
+        [
+            [bond.atom1.index, bond.atom2.index]
+            for bond in traj.topology.bonds
+            if bond.atom1.index in ligand_set and bond.atom2.index in ligand_set
+        ],
+        dtype=int,
+    )
+    if bond_pairs.size == 0:
+        return {
+            "heavy_atom_bonds": 0,
+            "frames_with_implausible_heavy_atom_bond": None,
+            "lower_distance_A": lower_distance_A,
+            "upper_distance_A": upper_distance_A,
+        }
+    bond_pairs = bond_pairs.reshape((-1, 2))
+    distances_A = md.compute_distances(
+        traj,
+        bond_pairs,
+        periodic=False,
+    ) * 10.0
+    reference = distances_A[0]
+    implausible = (distances_A < lower_distance_A) | (distances_A > upper_distance_A)
+    frame_table = pd.DataFrame(
+        {
+            "time_ns": times_ns,
+            "minimum_heavy_atom_bond_A": distances_A.min(axis=1),
+            "maximum_heavy_atom_bond_A": distances_A.max(axis=1),
+            "maximum_absolute_change_from_frame0_A": np.abs(
+                distances_A - reference[None, :]
+            ).max(axis=1),
+            "implausible_heavy_atom_bond_count": implausible.sum(axis=1),
+        }
+    )
+    frame_table.to_csv(out_dir / "ligand_geometry_timeseries.csv", index=False)
+
+    bond_rows = []
+    for column, (atom1_index, atom2_index) in enumerate(bond_pairs):
+        bond_rows.append(
+            {
+                "atom1": str(traj.topology.atom(int(atom1_index))),
+                "atom2": str(traj.topology.atom(int(atom2_index))),
+                "frame0_distance_A": float(reference[column]),
+                "mean_distance_A": float(distances_A[:, column].mean()),
+                "minimum_distance_A": float(distances_A[:, column].min()),
+                "maximum_distance_A": float(distances_A[:, column].max()),
+                "implausible_frame_fraction": float(implausible[:, column].mean()),
+            }
+        )
+    pd.DataFrame(bond_rows).to_csv(
+        out_dir / "ligand_geometry_bonds.csv",
+        index=False,
+    )
+    return {
+        "heavy_atom_bonds": int(len(bond_pairs)),
+        "frames_with_implausible_heavy_atom_bond": int(
+            np.any(implausible, axis=1).sum()
+        ),
+        "fraction_frames_with_implausible_heavy_atom_bond": float(
+            np.any(implausible, axis=1).mean()
+        ),
+        "minimum_observed_heavy_atom_bond_A": float(distances_A.min()),
+        "maximum_observed_heavy_atom_bond_A": float(distances_A.max()),
+        "maximum_absolute_change_from_frame0_A": float(
+            np.abs(distances_A - reference[None, :]).max()
+        ),
+        "lower_distance_A": lower_distance_A,
+        "upper_distance_A": upper_distance_A,
+    }
+
+
+def read_state_log(run_dir: Path) -> pd.DataFrame:
+    path = run_dir / "production.log"
+    if not path.exists() or path.stat().st_size == 0:
+        return pd.DataFrame()
+    frame = pd.read_csv(path)
+    frame.columns = [str(column).lstrip("#").strip().strip('"') for column in frame.columns]
+    available = [column for column in STATE_LOG_COLUMNS if column in frame.columns]
+    out = frame[available].rename(columns=STATE_LOG_COLUMNS).copy()
+    for column in out.columns:
+        out[column] = pd.to_numeric(out[column], errors="coerce")
+    if "time_ps" in out.columns and not out["time_ps"].dropna().empty:
+        out.insert(2 if "step" in out.columns else 1, "elapsed_time_ns", (out["time_ps"] - out["time_ps"].iloc[0]) / 1000.0)
+    return out
+
+
+def configured_barostat(run_dir: Path) -> dict[str, object]:
+    path = run_dir / "config.toml"
+    if not path.exists():
+        return {
+            "configured": None,
+            "target_pressure_atm": None,
+            "interval_steps": None,
+        }
+    config = tomllib.loads(path.read_text())
+    simulation = config.get("simulation", {})
+    return {
+        "configured": bool(simulation.get("add_barostat", True)),
+        "target_pressure_atm": float(simulation.get("pressure_atm", 1.0)),
+        "interval_steps": int(simulation.get("barostat_interval_steps", 25)),
+    }
+
+
+def summarize_state_log(run_dir: Path, out_dir: Path) -> dict[str, object]:
+    frame = read_state_log(run_dir)
+    if frame.empty:
+        summary = {
+            "records": 0,
+            "available_fields": [],
+            "instantaneous_pressure_timeseries_available": False,
+            "barostat": configured_barostat(run_dir),
+            "metrics": {},
+        }
+    else:
+        frame.to_csv(out_dir / "thermodynamic_timeseries.csv", index=False)
+        metric_columns = [
+            column
+            for column in frame.columns
+            if column not in {"step", "time_ps", "elapsed_time_ns", "speed_ns_day"}
+        ]
+        metrics: dict[str, dict[str, float | None]] = {}
+        elapsed = frame.get("elapsed_time_ns")
+        for column in metric_columns:
+            values = frame[column].dropna()
+            if values.empty:
+                continue
+            slope = None
+            if elapsed is not None:
+                paired = pd.DataFrame({"time": elapsed, "value": frame[column]}).dropna()
+                if len(paired) > 1 and paired["time"].nunique() > 1:
+                    slope = float(np.polyfit(paired["time"], paired["value"], 1)[0])
+            metrics[column] = {
+                "mean": float(values.mean()),
+                "sd": float(values.std(ddof=1)) if len(values) > 1 else 0.0,
+                "min": float(values.min()),
+                "max": float(values.max()),
+                "linear_slope_per_ns": slope,
+            }
+        summary = {
+            "records": int(len(frame)),
+            "available_fields": list(frame.columns),
+            "instantaneous_pressure_timeseries_available": False,
+            "barostat": configured_barostat(run_dir),
+            "metrics": metrics,
+        }
+    (out_dir / "thermodynamic_qc_summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+    return summary
 
 
 def ligand_pose_retention(traj, ligand_heavy: np.ndarray, protein_heavy: np.ndarray, lipid_indices: np.ndarray) -> pd.DataFrame:
     import mdtraj as md
 
-    ligand_com = atom_com(traj.xyz, ligand_heavy)
+    ligand_com = atom_com(traj, ligand_heavy)
     ligand_com_start = ligand_com[0]
     ligand_com_displacement_A = np.linalg.norm(ligand_com - ligand_com_start[None, :], axis=1) * 10.0
 
@@ -114,12 +373,13 @@ def ligand_pose_retention(traj, ligand_heavy: np.ndarray, protein_heavy: np.ndar
         )[0]
     pocket_heavy = np.array(sorted(set(int(index) for index in initial_neighbors)), dtype=int)
     if len(pocket_heavy) > 0:
-        pocket_com = atom_com(traj.xyz, pocket_heavy)
+        pocket_com = atom_com(traj, pocket_heavy)
         ligand_pocket_com_distance_A = np.linalg.norm(ligand_com - pocket_com, axis=1) * 10.0
     else:
         ligand_pocket_com_distance_A = np.full(traj.n_frames, np.nan)
 
     contact_data: dict[str, np.ndarray] = {}
+    initial_contact_residues: set[str] = set()
     for cutoff_nm, label in [(0.4, "4A"), (0.6, "6A"), (0.8, "8A")]:
         neighbors_by_frame = md.compute_neighbors(
             traj,
@@ -128,11 +388,27 @@ def ligand_pose_retention(traj, ligand_heavy: np.ndarray, protein_heavy: np.ndar
             haystack_indices=protein_heavy,
             periodic=False,
         )
+        residue_sets = [
+            {str(traj.topology.atom(int(index)).residue) for index in frame}
+            for frame in neighbors_by_frame
+        ]
         contact_data[f"contact_atoms_{label}"] = np.array([len(frame) for frame in neighbors_by_frame], dtype=int)
         contact_data[f"contact_residues_{label}"] = np.array(
-            [len({str(traj.topology.atom(int(index)).residue) for index in frame}) for frame in neighbors_by_frame],
+            [len(residues) for residues in residue_sets],
             dtype=int,
         )
+        if label == "4A":
+            initial_contact_residues = residue_sets[0]
+            denominator = len(initial_contact_residues)
+            contact_data["initial_contact_residue_fraction_4A"] = np.array(
+                [
+                    len(initial_contact_residues & residues) / denominator
+                    if denominator
+                    else np.nan
+                    for residues in residue_sets
+                ],
+                dtype=float,
+            )
 
     min_distance_A = np.empty(traj.n_frames, dtype=float)
     neighbors_12A = md.compute_neighbors(traj, 1.2, ligand_heavy, haystack_indices=protein_heavy, periodic=False)
@@ -162,33 +438,73 @@ def ligand_pose_retention(traj, ligand_heavy: np.ndarray, protein_heavy: np.ndar
     return pd.DataFrame(data)
 
 
-def ligand_protein_hbonds(traj, ligand_resname: str | None) -> pd.DataFrame:
+def ligand_protein_hbonds(
+    traj,
+    ligand_indices_array: np.ndarray,
+    donor_acceptor_cutoff_nm: float = 0.35,
+    angle_cutoff_degrees: float = 120.0,
+) -> pd.DataFrame:
     import mdtraj as md
 
+    columns = [
+        "donor",
+        "hydrogen",
+        "acceptor",
+        "ligand_role",
+        "occupancy",
+        "mean_donor_acceptor_distance_A_when_present",
+        "donor_acceptor_cutoff_A",
+        "angle_cutoff_degrees",
+    ]
+    ligand_set = set(int(index) for index in ligand_indices_array)
     rows = []
     try:
-        hbonds = md.baker_hubbard(traj, freq=0.1, periodic=False)
+        hbonds = md.baker_hubbard(traj, freq=0.0, periodic=False)
     except Exception:
         hbonds = np.empty((0, 3), dtype=int)
-    for donor, _hydrogen, acceptor in hbonds:
+    for donor, hydrogen, acceptor in hbonds:
         donor_atom = traj.topology.atom(int(donor))
+        hydrogen_atom = traj.topology.atom(int(hydrogen))
         acceptor_atom = traj.topology.atom(int(acceptor))
-        if ligand_resname:
-            donor_lig = donor_atom.residue.name == ligand_resname
-            acceptor_lig = acceptor_atom.residue.name == ligand_resname
-        else:
-            donor_lig = not donor_atom.residue.is_protein
-            acceptor_lig = not acceptor_atom.residue.is_protein
+        donor_lig = int(donor) in ligand_set
+        acceptor_lig = int(acceptor) in ligand_set
         if donor_lig == acceptor_lig:
+            continue
+        distances_nm = md.compute_distances(
+            traj,
+            np.array([[int(donor), int(acceptor)]], dtype=int),
+            periodic=False,
+        )[:, 0]
+        angles_rad = md.compute_angles(
+            traj,
+            np.array([[int(donor), int(hydrogen), int(acceptor)]], dtype=int),
+            periodic=False,
+        )[:, 0]
+        present = (distances_nm <= donor_acceptor_cutoff_nm) & (
+            angles_rad >= math.radians(angle_cutoff_degrees)
+        )
+        occupancy = float(present.mean())
+        if occupancy <= 0:
             continue
         rows.append(
             {
                 "donor": str(donor_atom),
+                "hydrogen": str(hydrogen_atom),
                 "acceptor": str(acceptor_atom),
                 "ligand_role": "donor" if donor_lig else "acceptor",
+                "occupancy": occupancy,
+                "mean_donor_acceptor_distance_A_when_present": float(
+                    distances_nm[present].mean() * 10.0
+                ),
+                "donor_acceptor_cutoff_A": donor_acceptor_cutoff_nm * 10.0,
+                "angle_cutoff_degrees": angle_cutoff_degrees,
             }
         )
-    return pd.DataFrame(rows)
+    return pd.DataFrame(rows, columns=columns).sort_values(
+        "occupancy",
+        ascending=False,
+        ignore_index=True,
+    )
 
 
 def main() -> int:
@@ -199,38 +515,72 @@ def main() -> int:
     parser.add_argument("--ligand-resname")
     parser.add_argument("--stride", type=int, default=1)
     parser.add_argument("--contact-cutoff-nm", type=float, default=0.4)
+    parser.add_argument(
+        "--alignment-selection",
+        default="protein and backbone",
+        help="MDTraj selection used to align every frame to production frame 0.",
+    )
+    parser.add_argument(
+        "--write-imaged",
+        action="store_true",
+        help="Write the PBC-imaged, receptor-aligned trajectory under analysis/.",
+    )
     args = parser.parse_args()
 
     import mdtraj as md
 
     run_dir = args.run_dir.resolve()
-    topology_path = args.topology or run_dir / "system_solvated.pdb"
+    topology_path = args.topology or run_dir / "equilibrated.pdb"
     trajectory_path = args.trajectory or run_dir / "production.dcd"
     out_dir = run_dir / "analysis"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    traj = md.load(str(trajectory_path), top=str(topology_path), stride=args.stride)
+    raw_traj = md.load(str(trajectory_path), top=str(topology_path), stride=args.stride)
+    traj = image_trajectory(raw_traj)
     top = traj.topology
     protein_backbone = top.select("protein and backbone")
     if len(protein_backbone) == 0:
         raise SystemExit("No protein backbone atoms found.")
+    alignment_indices = top.select(args.alignment_selection)
+    if len(alignment_indices) == 0:
+        raise SystemExit(
+            f"Alignment selection matched no atoms: {args.alignment_selection}"
+        )
 
-    traj.superpose(traj, frame=0, atom_indices=protein_backbone)
+    traj.superpose(traj, frame=0, atom_indices=alignment_indices)
+    if args.write_imaged:
+        suffix = "" if args.stride == 1 else f"_stride{args.stride}"
+        traj.save_dcd(str(out_dir / f"production_pbc_imaged_aligned{suffix}.dcd"))
     times_ns = trajectory_times_ns(run_dir, traj, args.stride)
-    backbone_rmsd = md.rmsd(traj, traj, frame=0, atom_indices=protein_backbone) * 10.0
+    backbone_rmsd = coordinate_rmsd_A(traj, protein_backbone)
 
     lig_idx = ligand_indices(top, args.ligand_resname)
-    ligand_rmsd = None
-    if len(lig_idx) > 0:
-        ligand_rmsd = md.rmsd(traj, traj, frame=0, atom_indices=lig_idx) * 10.0
+    ligand_heavy = heavy_indices(top, lig_idx)
+    if len(ligand_heavy) == 0:
+        raise SystemExit("The selected ligand contains no heavy atoms.")
+    ligand_pose_rmsd = coordinate_rmsd_A(traj, ligand_heavy)
+    ligand_internal_rmsd = internal_rmsd_A(traj, ligand_heavy)
+    ligand_geometry_qc = analyze_ligand_geometry(
+        traj,
+        ligand_heavy,
+        times_ns,
+        out_dir,
+    )
 
-    rmsd_df = pd.DataFrame({"time_ns": times_ns, "backbone_rmsd_A": backbone_rmsd})
-    if ligand_rmsd is not None:
-        rmsd_df["ligand_rmsd_A"] = ligand_rmsd
+    rmsd_df = pd.DataFrame(
+        {
+            "time_ns": times_ns,
+            "backbone_rmsd_A": backbone_rmsd,
+            "ligand_pose_rmsd_A": ligand_pose_rmsd,
+            "ligand_internal_rmsd_A": ligand_internal_rmsd,
+        }
+    )
     rmsd_df.to_csv(out_dir / "rmsd_timeseries.csv", index=False)
 
     ca = top.select("protein and name CA")
-    rmsf = md.rmsf(traj, traj, frame=0, atom_indices=ca) * 10.0
+    ca_xyz = traj.xyz[:, ca, :]
+    ca_mean = ca_xyz.mean(axis=0)
+    rmsf = np.sqrt(np.mean(np.sum((ca_xyz - ca_mean[None, :, :]) ** 2, axis=2), axis=0)) * 10.0
     rmsf_df = pd.DataFrame(
         {
             "atom_index": ca,
@@ -245,6 +595,14 @@ def main() -> int:
     hbonds_df = pd.DataFrame()
     if len(lig_idx) > 0:
         lig_set = {int(idx) for idx in lig_idx}
+        protein_all = np.array(
+            [
+                atom.index
+                for atom in top.atoms
+                if atom.index not in lig_set and atom.residue.is_protein
+            ],
+            dtype=int,
+        )
         protein_heavy = np.array(
             [
                 atom.index
@@ -256,13 +614,13 @@ def main() -> int:
             ],
             dtype=int,
         )
-        ligand_heavy = heavy_indices(top, lig_idx)
         counts: dict[str, int] = {}
         neighbors_by_frame = md.compute_neighbors(
             traj,
             args.contact_cutoff_nm,
             ligand_heavy,
             haystack_indices=protein_heavy,
+            periodic=False,
         )
         for neighbors in neighbors_by_frame:
             residues = {str(top.atom(int(idx)).residue) for idx in neighbors}
@@ -288,10 +646,13 @@ def main() -> int:
         pose_df.insert(0, "time_ns", times_ns)
         pose_df.to_csv(out_dir / "pose_retention_timeseries.csv", index=False)
 
-        compact_indices = np.array(sorted(set(protein_heavy) | set(ligand_heavy)), dtype=int)
+        compact_indices = np.concatenate([protein_all, lig_idx])
         compact = traj.atom_slice(compact_indices)
-        hbonds_df = ligand_protein_hbonds(compact, args.ligand_resname)
-        hbonds_df.to_csv(out_dir / "ligand_protein_hbond_candidates.csv", index=False)
+        compact_ligand = np.arange(len(protein_all), len(compact_indices), dtype=int)
+        hbonds_df = ligand_protein_hbonds(compact, compact_ligand)
+        hbonds_df.to_csv(out_dir / "ligand_protein_hbond_occupancy.csv", index=False)
+
+    thermodynamic_qc = summarize_state_log(run_dir, out_dir)
 
     summary = {
         "run_dir": str(run_dir),
@@ -303,20 +664,51 @@ def main() -> int:
         "backbone_rmsd_A_mean": float(backbone_rmsd.mean()),
         "backbone_rmsd_A_max": float(backbone_rmsd.max()),
         "ligand_atoms": int(len(lig_idx)),
-        "ligand_rmsd_A_final": float(ligand_rmsd[-1]) if ligand_rmsd is not None else None,
-        "ligand_rmsd_A_mean": float(ligand_rmsd.mean()) if ligand_rmsd is not None else None,
-        "ligand_rmsd_A_max": float(ligand_rmsd.max()) if ligand_rmsd is not None else None,
+        "ligand_heavy_atoms": int(len(ligand_heavy)),
+        "ligand_pose_rmsd_A_final": float(ligand_pose_rmsd[-1]),
+        "ligand_pose_rmsd_A_mean": float(ligand_pose_rmsd.mean()),
+        "ligand_pose_rmsd_A_max": float(ligand_pose_rmsd.max()),
+        "ligand_internal_rmsd_A_final": float(ligand_internal_rmsd[-1]),
+        "ligand_internal_rmsd_A_mean": float(ligand_internal_rmsd.mean()),
+        "ligand_internal_rmsd_A_max": float(ligand_internal_rmsd.max()),
+        "ligand_geometry_qc": ligand_geometry_qc,
+        "pbc_imaging_applied": bool(raw_traj.unitcell_vectors is not None),
+        "alignment_selection": args.alignment_selection,
         "contact_cutoff_nm": args.contact_cutoff_nm,
         "n_contact_residues": int(len(contact_df)),
-        "ligand_com_displacement_A_final": float(pose_df["ligand_com_displacement_A"].iloc[-1]) if not pose_df.empty else None,
-        "ligand_com_displacement_A_mean": float(pose_df["ligand_com_displacement_A"].mean()) if not pose_df.empty else None,
-        "ligand_pocket_com_distance_A_mean": float(pose_df["ligand_pocket_com_distance_A"].mean()) if not pose_df.empty else None,
-        "protein_ligand_min_heavy_distance_A_mean": float(pose_df["protein_ligand_min_heavy_distance_A"].mean()) if not pose_df.empty else None,
-        "contact_atoms_4A_mean": float(pose_df["contact_atoms_4A"].mean()) if not pose_df.empty else None,
-        "contact_atoms_6A_mean": float(pose_df["contact_atoms_6A"].mean()) if not pose_df.empty else None,
-        "contact_atoms_8A_mean": float(pose_df["contact_atoms_8A"].mean()) if not pose_df.empty else None,
-        "ligand_z_from_membrane_center_A_mean": float(pose_df["ligand_z_from_membrane_center_A"].mean()) if not pose_df.empty else None,
-        "ligand_protein_hbond_candidates_freq_ge_0p1": int(len(hbonds_df)),
+        "ligand_com_displacement_A_final": finite_or_none(
+            pose_df["ligand_com_displacement_A"].iloc[-1]
+        ) if not pose_df.empty else None,
+        "ligand_com_displacement_A_mean": finite_or_none(
+            pose_df["ligand_com_displacement_A"].mean()
+        ) if not pose_df.empty else None,
+        "ligand_pocket_com_distance_A_mean": finite_or_none(
+            pose_df["ligand_pocket_com_distance_A"].mean()
+        ) if not pose_df.empty else None,
+        "protein_ligand_min_heavy_distance_A_mean": finite_or_none(
+            pose_df["protein_ligand_min_heavy_distance_A"].mean()
+        ) if not pose_df.empty else None,
+        "contact_atoms_4A_mean": finite_or_none(
+            pose_df["contact_atoms_4A"].mean()
+        ) if not pose_df.empty else None,
+        "contact_atoms_6A_mean": finite_or_none(
+            pose_df["contact_atoms_6A"].mean()
+        ) if not pose_df.empty else None,
+        "contact_atoms_8A_mean": finite_or_none(
+            pose_df["contact_atoms_8A"].mean()
+        ) if not pose_df.empty else None,
+        "initial_contact_residue_fraction_4A_mean": (
+            finite_or_none(pose_df["initial_contact_residue_fraction_4A"].mean())
+            if not pose_df.empty
+            else None
+        ),
+        "ligand_z_from_membrane_center_A_mean": finite_or_none(
+            pose_df["ligand_z_from_membrane_center_A"].mean()
+        ) if not pose_df.empty else None,
+        "ligand_protein_hbonds_occupancy_ge_0p2": (
+            int((hbonds_df["occupancy"] >= 0.2).sum()) if not hbonds_df.empty else 0
+        ),
+        "thermodynamic_qc": thermodynamic_qc,
     }
     (out_dir / "analysis_summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     print(json.dumps(summary, indent=2))

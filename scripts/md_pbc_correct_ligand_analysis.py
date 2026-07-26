@@ -1,9 +1,12 @@
-"""PBC-correct ligand-centric MD analysis for Amber production runs.
+"""PBC-correct ligand-centric compatibility analysis.
 
 This script images each trajectory around the protein molecule, writes an
 imaged DCD next to the run's analysis outputs, and computes ligand pose RMSD,
 ligand SASA, and protein-ligand contact counts from the imaged trajectory.
 Raw production trajectories are not modified.
+
+New analyses should normally use ``md_analyze_production.py``, which now
+performs the same PBC-aware preprocessing as part of the primary workflow.
 """
 
 from __future__ import annotations
@@ -15,14 +18,18 @@ import mdtraj as md
 import numpy as np
 import pandas as pd
 
-
-def protein_anchor_molecules(topology) -> list[set]:
-    protein_atom_indices = set(int(idx) for idx in topology.select("protein"))
-    molecules = list(topology.find_molecules())
-    anchors = [mol for mol in molecules if any(atom.index in protein_atom_indices for atom in mol)]
-    if not anchors:
-        raise SystemExit("No protein molecule found for PBC imaging.")
-    return anchors
+try:
+    from md_analyze_production import (
+        coordinate_rmsd_A,
+        image_trajectory,
+        trajectory_times_ns,
+    )
+except ModuleNotFoundError:
+    from scripts.md_analyze_production import (
+        coordinate_rmsd_A,
+        image_trajectory,
+        trajectory_times_ns,
+    )
 
 
 def ligand_indices(topology, ligand_resname: str) -> np.ndarray:
@@ -51,8 +58,7 @@ def analyze_run(run_dir: Path, ligand_resname: str, stride: int, write_imaged: b
     analysis_dir.mkdir(exist_ok=True)
 
     traj = md.load(str(traj_path), top=str(top_path), stride=stride)
-    anchors = protein_anchor_molecules(traj.topology)
-    imaged = traj.image_molecules(anchor_molecules=anchors, inplace=False)
+    imaged = image_trajectory(traj)
 
     if write_imaged:
         suffix = "" if stride == 1 else f"_stride{stride}"
@@ -77,8 +83,7 @@ def analyze_run(run_dir: Path, ligand_resname: str, stride: int, write_imaged: b
     ligand_heavy = heavy_indices(top, ligand)
 
     imaged.superpose(imaged, frame=0, atom_indices=backbone)
-    ref = imaged.xyz[0, ligand, :]
-    pose_rmsd_A = np.sqrt(((imaged.xyz[:, ligand, :] - ref[None, :, :]) ** 2).sum(axis=2).mean(axis=1)) * 10.0
+    pose_rmsd_A = coordinate_rmsd_A(imaged, ligand_heavy)
 
     neighbors_4A = md.compute_neighbors(imaged, 0.4, ligand_heavy, haystack_indices=protein_heavy, periodic=False)
     neighbors_8A = md.compute_neighbors(imaged, 0.8, ligand_heavy, haystack_indices=protein_heavy, periodic=False)
@@ -87,7 +92,7 @@ def analyze_run(run_dir: Path, ligand_resname: str, stride: int, write_imaged: b
     sasa_atom = md.shrake_rupley(compact, mode="atom")
     ligand_sasa_nm2 = sasa_atom[:, len(protein) :].sum(axis=1)
 
-    times_ns = np.arange(imaged.n_frames, dtype=float) * stride * 0.05
+    times_ns = trajectory_times_ns(run_dir, imaged, stride)
     df = pd.DataFrame(
         {
             "time_ns": times_ns,
@@ -100,13 +105,15 @@ def analyze_run(run_dir: Path, ligand_resname: str, stride: int, write_imaged: b
     df.to_csv(analysis_dir / f"pbc_corrected_ligand_metrics_stride{stride}.csv", index=False)
 
     summary = []
-    for start, end in [(0, 20), (20, 40), (40, 60), (60, 80), (80, 90), (90, 100)]:
+    final_time = float(times_ns[-1]) if len(times_ns) else 0.0
+    windows = [(start, min(start + 20, final_time + 1e-9)) for start in np.arange(0, final_time, 20)]
+    for start, end in windows:
         window = df[(df["time_ns"] >= start) & (df["time_ns"] < end)]
         if window.empty:
             continue
         summary.append(
             {
-                "window_ns": f"{start}-{end}",
+                "window_ns": f"{start:g}-{end:g}",
                 "ligand_pose_rmsd_A_mean": window["ligand_pose_rmsd_A"].mean(),
                 "ligand_pose_rmsd_A_max": window["ligand_pose_rmsd_A"].max(),
                 "ligand_sasa_nm2_mean": window["ligand_sasa_nm2"].mean(),

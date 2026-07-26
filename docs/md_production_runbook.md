@@ -271,10 +271,43 @@ These files are ignored by Git.
 
 ## Analysis
 
-After a run completes:
+Analyze only completed trajectories. OpenFF-prepared ligands are written as
+`UNK`; the Amber-prepared MAO-B ligand is `LIG`.
 
 ```bash
-python scripts/md_analyze_production.py --run-dir md_runs/production/sglt2_mol13144/rep1 --ligand-resname UNL
+python scripts/md_analyze_production.py \
+  --run-dir md_runs/production/sglt2_mol13144/rep1 \
+  --ligand-resname UNK
 ```
 
-This writes RMSD, C-alpha RMSF, contact occupancy, and a JSON summary under the run's `analysis/` folder.
+For the 12 corrected SGLT2 and OPRK1 runs on the GPU machine:
+
+```bash
+python scripts/run_primary_md_analysis.py \
+  --scope corrected \
+  --skip-publication
+```
+
+After all 15 primary trajectories, including MAO-B/Mol_14056, are available on
+one machine:
+
+```bash
+python scripts/run_primary_md_analysis.py --scope all
+```
+
+The per-run analyzer performs PBC imaging before receptor alignment and writes:
+
+- `rmsd_timeseries.csv`, containing backbone RMSD, ligand pose RMSD and ligand
+  internal RMSD as separate quantities;
+- `rmsf_ca.csv`;
+- `contact_occupancy.csv`;
+- `pose_retention_timeseries.csv`;
+- `ligand_geometry_timeseries.csv` and `ligand_geometry_bonds.csv`;
+- `ligand_protein_hbond_occupancy.csv`;
+- `thermodynamic_timeseries.csv` when a production state log is available;
+- `thermodynamic_qc_summary.json`;
+- `analysis_summary.json`.
+
+The thermodynamic summary reports the configured 1 atm Monte Carlo barostat
+target separately from observed state-log quantities. The saved production logs
+do not provide an instantaneous-pressure time series.

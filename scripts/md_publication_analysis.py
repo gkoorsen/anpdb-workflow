@@ -1,8 +1,10 @@
-"""Generate publication-oriented MD analysis figures for completed MD systems.
+"""Generate publication-oriented analysis for the five primary MD complexes.
 
 It reuses the per-run outputs from scripts/md_analyze_production.py for RMSD,
 RMSF, contact occupancy, and pose-retention descriptors, and computes additional
 summary descriptors from strided trajectories to keep runtime manageable.
+
+CYP1B1 is intentionally excluded from this manuscript analysis.
 """
 
 from __future__ import annotations
@@ -22,7 +24,22 @@ import mdtraj as md
 import numpy as np
 import pandas as pd
 
-from md_analyze_production import LIPID_RESNAMES, heavy_indices, ligand_pose_retention
+try:
+    from md_analyze_production import (
+        LIPID_RESNAMES,
+        heavy_indices,
+        image_trajectory,
+        ligand_pose_retention,
+        trajectory_times_ns,
+    )
+except ModuleNotFoundError:
+    from scripts.md_analyze_production import (
+        LIPID_RESNAMES,
+        heavy_indices,
+        image_trajectory,
+        ligand_pose_retention,
+        trajectory_times_ns,
+    )
 
 
 @dataclass(frozen=True)
@@ -34,9 +51,6 @@ class RunSpec:
 
 
 RUNS = [
-    RunSpec("CYP1B1", "rep1", Path("md_runs/production/cyp1b1_mol11315_amber/rep1"), "LIG"),
-    RunSpec("CYP1B1", "rep2", Path("md_runs/production/cyp1b1_mol11315_amber/rep2"), "LIG"),
-    RunSpec("CYP1B1", "rep3", Path("md_runs/production/cyp1b1_mol11315_amber/rep3"), "LIG"),
     RunSpec("MAO-B", "rep1_rerun2", Path("md_runs/production/maob_mol14056_amber/rep1_rerun2"), "LIG"),
     RunSpec("MAO-B", "rep2", Path("md_runs/production/maob_mol14056_amber/rep2"), "LIG"),
     RunSpec("MAO-B", "rep3", Path("md_runs/production/maob_mol14056_amber/rep3"), "LIG"),
@@ -55,7 +69,6 @@ RUNS = [
 ]
 
 COLORS = {
-    "CYP1B1": "#1f77b4",
     "MAO-B": "#d95f02",
     "SGLT2 mol13144": "#1b9e77",
     "SGLT2 mol13733": "#7570b3",
@@ -77,6 +90,8 @@ def ensure_run_ready(run: RunSpec) -> None:
         run.run_dir / "analysis" / "rmsf_ca.csv",
         run.run_dir / "analysis" / "contact_occupancy.csv",
         run.run_dir / "analysis" / "pose_retention_timeseries.csv",
+        run.run_dir / "analysis" / "ligand_protein_hbond_occupancy.csv",
+        run.run_dir / "analysis" / "thermodynamic_qc_summary.json",
     ]
     missing = [str(path) for path in required if not path.exists()]
     if missing:
@@ -119,6 +134,75 @@ def load_contacts(runs: list[RunSpec]) -> pd.DataFrame:
     return pd.concat(frames, ignore_index=True)
 
 
+def load_hbonds(runs: list[RunSpec]) -> pd.DataFrame:
+    frames = []
+    for run in runs:
+        path = run.run_dir / "analysis" / "ligand_protein_hbond_occupancy.csv"
+        if path.stat().st_size == 0:
+            continue
+        df = pd.read_csv(path)
+        if df.empty:
+            continue
+        df["system"] = run.system
+        df["replicate"] = run.replicate
+        frames.append(df)
+    return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
+
+def complete_contact_occupancies(
+    contacts: pd.DataFrame,
+    runs: list[RunSpec],
+) -> pd.DataFrame:
+    rows: list[dict[str, object]] = []
+    for system in dict.fromkeys(run.system for run in runs):
+        system_runs = [run for run in runs if run.system == system]
+        residues = sorted(
+            contacts.loc[contacts["system"] == system, "residue"].dropna().unique()
+        )
+        for residue in residues:
+            for run in system_runs:
+                match = contacts[
+                    (contacts["system"] == system)
+                    & (contacts["replicate"] == run.replicate)
+                    & (contacts["residue"] == residue)
+                ]
+                rows.append(
+                    {
+                        "system": system,
+                        "replicate": run.replicate,
+                        "residue": residue,
+                        "occupancy": float(match["occupancy"].iloc[0]) if not match.empty else 0.0,
+                    }
+                )
+    return pd.DataFrame(rows)
+
+
+def load_thermodynamic_qc(runs: list[RunSpec]) -> pd.DataFrame:
+    rows = []
+    for run in runs:
+        data = json.loads(
+            (run.run_dir / "analysis" / "thermodynamic_qc_summary.json").read_text()
+        )
+        barostat = data.get("barostat", {})
+        row: dict[str, object] = {
+            "system": run.system,
+            "replicate": run.replicate,
+            "records": data.get("records"),
+            "instantaneous_pressure_timeseries_available": data.get(
+                "instantaneous_pressure_timeseries_available",
+                False,
+            ),
+            "barostat_configured": barostat.get("configured"),
+            "barostat_target_pressure_atm": barostat.get("target_pressure_atm"),
+            "barostat_interval_steps": barostat.get("interval_steps"),
+        }
+        for metric, values in data.get("metrics", {}).items():
+            for statistic, value in values.items():
+                row[f"{metric}_{statistic}"] = value
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
 def load_summaries(runs: list[RunSpec]) -> pd.DataFrame:
     rows = []
     for run in runs:
@@ -130,12 +214,13 @@ def load_summaries(runs: list[RunSpec]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def compute_extra_metrics(run: RunSpec, stride: int) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    traj = md.load(
+def compute_extra_metrics(run: RunSpec, stride: int) -> tuple[pd.DataFrame, pd.DataFrame]:
+    raw_traj = md.load(
         str(run.run_dir / "production.dcd"),
         top=str(run.run_dir / "equilibrated.pdb"),
         stride=stride,
     )
+    traj = image_trajectory(raw_traj)
     top = traj.topology
     ligand = np.array([atom.index for atom in top.atoms if atom.residue.name == run.ligand_resname], dtype=int)
     ligand_set = set(int(index) for index in ligand)
@@ -145,7 +230,7 @@ def compute_extra_metrics(run: RunSpec, stride: int) -> tuple[pd.DataFrame, pd.D
         raise SystemExit(f"Could not select protein/backbone/ligand atoms for {run.run_dir}")
 
     traj.superpose(traj, frame=0, atom_indices=backbone)
-    times_ns = np.arange(traj.n_frames, dtype=float) * stride * 0.05
+    times_ns = trajectory_times_ns(run.run_dir, traj, stride)
 
     protein_traj = traj.atom_slice(protein)
     rg_A = md.compute_rg(protein_traj) * 10.0
@@ -179,6 +264,7 @@ def compute_extra_metrics(run: RunSpec, stride: int) -> tuple[pd.DataFrame, pd.D
         0.4,
         ligand_heavy_local,
         haystack_indices=protein_heavy_local,
+        periodic=False,
     )
     contact_counts = np.array([len(frame_neighbors) for frame_neighbors in neighbors], dtype=int)
     protein_heavy = np.array(
@@ -216,29 +302,6 @@ def compute_extra_metrics(run: RunSpec, stride: int) -> tuple[pd.DataFrame, pd.D
     )
     metrics = pd.concat([metrics, pose], axis=1)
 
-    hb_rows = []
-    try:
-        hbonds = md.baker_hubbard(sasa_traj, freq=0.1, periodic=False)
-    except Exception:
-        hbonds = np.empty((0, 3), dtype=int)
-    for donor, hydrogen, acceptor in hbonds:
-        donor_atom = sasa_traj.topology.atom(int(donor))
-        acceptor_atom = sasa_traj.topology.atom(int(acceptor))
-        donor_lig = donor_atom.residue.name == run.ligand_resname
-        acceptor_lig = acceptor_atom.residue.name == run.ligand_resname
-        if donor_lig == acceptor_lig:
-            continue
-        hb_rows.append(
-            {
-                "system": run.system,
-                "replicate": run.replicate,
-                "donor": str(donor_atom),
-                "acceptor": str(acceptor_atom),
-                "ligand_role": "donor" if donor_lig else "acceptor",
-            }
-        )
-    hbonds_df = pd.DataFrame(hb_rows)
-
     extra_summary = pd.DataFrame(
         [
             {
@@ -261,12 +324,14 @@ def compute_extra_metrics(run: RunSpec, stride: int) -> tuple[pd.DataFrame, pd.D
                 "contact_atoms_4A_mean": float(pose["contact_atoms_4A"].mean()),
                 "contact_atoms_6A_mean": float(pose["contact_atoms_6A"].mean()),
                 "contact_atoms_8A_mean": float(pose["contact_atoms_8A"].mean()),
+                "initial_contact_residue_fraction_4A_mean": float(
+                    pose["initial_contact_residue_fraction_4A"].mean()
+                ),
                 "ligand_z_from_membrane_center_A_mean": float(pose["ligand_z_from_membrane_center_A"].mean()),
-                "ligand_protein_hbonds_unique_freq_ge_0p1": int(len(hbonds_df)),
             }
         ]
     )
-    return metrics, hbonds_df, extra_summary
+    return metrics, extra_summary
 
 
 def savefig(fig: plt.Figure, out_dir: Path, name: str) -> None:
@@ -279,7 +344,7 @@ def plot_rmsd(rmsd: pd.DataFrame, out_dir: Path) -> None:
     fig, axes = plt.subplots(2, len(SYSTEMS), figsize=(3.4 * len(SYSTEMS), 7), sharex=True, squeeze=False)
     for col, title, row in [
         ("backbone_rmsd_A", "Backbone RMSD", 0),
-        ("ligand_rmsd_A", "Ligand RMSD", 1),
+        ("ligand_pose_rmsd_A", "Ligand pose RMSD", 1),
     ]:
         for ax, system in zip(axes[row], SYSTEMS, strict=True):
             sub = rmsd[rmsd["system"] == system]
@@ -300,7 +365,7 @@ def plot_rmsd_distribution(rmsd: pd.DataFrame, out_dir: Path) -> None:
     positions = np.arange(1, len(SYSTEMS) + 1)
     for ax, col, title in [
         (axes[0], "backbone_rmsd_A", "Backbone RMSD"),
-        (axes[1], "ligand_rmsd_A", "Ligand RMSD"),
+        (axes[1], "ligand_pose_rmsd_A", "Ligand pose RMSD"),
     ]:
         values = [rmsd.loc[rmsd["system"] == system, col].to_numpy() for system in SYSTEMS]
         parts = ax.violinplot(values, positions=positions, showmeans=True, showextrema=False)
@@ -387,22 +452,23 @@ def plot_extra_timeseries(extra: pd.DataFrame, out_dir: Path) -> None:
         savefig(fig, out_dir, name)
 
 
-def plot_hbond_candidates(hbonds_df: pd.DataFrame, out_dir: Path) -> None:
+def plot_hbond_occupancy(hbonds_df: pd.DataFrame, out_dir: Path) -> None:
     if hbonds_df.empty:
         return
     counts = (
-        hbonds_df.groupby(["system", "replicate"], as_index=False)
-        .size()
-        .rename(columns={"size": "hbond_candidates"})
+        hbonds_df.assign(persistent=hbonds_df["occupancy"] >= 0.2)
+        .groupby(["system", "replicate"], as_index=False)["persistent"]
+        .sum()
+        .rename(columns={"persistent": "persistent_hbonds"})
     )
     fig, ax = plt.subplots(figsize=(7, 4))
     labels = [f"{row.system}\n{row.replicate}" for row in counts.itertuples()]
     colors = [COLORS.get(row.system, "#666666") for row in counts.itertuples()]
-    ax.bar(labels, counts["hbond_candidates"], color=colors, alpha=0.8)
-    ax.set_ylabel("Unique ligand-protein H-bond candidates")
-    ax.set_title("H-bond candidates with >=10% trajectory frequency")
+    ax.bar(labels, counts["persistent_hbonds"], color=colors, alpha=0.8)
+    ax.set_ylabel("Ligand-protein H-bonds")
+    ax.set_title("Hydrogen bonds with occupancy >=20%")
     ax.grid(axis="y", alpha=0.25)
-    savefig(fig, out_dir, "fig13_hbond_candidate_counts")
+    savefig(fig, out_dir, "fig13_hbond_occupancy_counts")
 
 
 def main() -> int:
@@ -422,29 +488,34 @@ def main() -> int:
     rmsd = load_rmsd(RUNS)
     rmsf = load_rmsf(RUNS)
     contacts = load_contacts(RUNS)
+    complete_contacts = complete_contact_occupancies(contacts, RUNS)
+    hbonds_df = load_hbonds(RUNS)
+    thermodynamic_qc = load_thermodynamic_qc(RUNS)
     summaries = load_summaries(RUNS)
 
     extra_frames = []
-    hb_frames = []
     extra_summary_frames = []
     for run in RUNS:
         print(f"Computing extra metrics for {run.system} {run.replicate}...", flush=True)
-        metrics, hbonds, extra_summary = compute_extra_metrics(run, args.extra_stride)
+        metrics, extra_summary = compute_extra_metrics(run, args.extra_stride)
         extra_frames.append(metrics)
-        hb_frames.append(hbonds)
         extra_summary_frames.append(extra_summary)
 
     extra = pd.concat(extra_frames, ignore_index=True)
-    hbonds_df = pd.concat(hb_frames, ignore_index=True) if hb_frames else pd.DataFrame()
     extra_summary = pd.concat(extra_summary_frames, ignore_index=True)
 
     summaries.to_csv(tables_dir / "per_replicate_rmsd_summary.csv", index=False)
     rmsd.to_csv(tables_dir / "rmsd_timeseries_all.csv", index=False)
     rmsf.to_csv(tables_dir / "rmsf_ca_all.csv", index=False)
     contacts.to_csv(tables_dir / "contact_occupancy_all.csv", index=False)
+    complete_contacts.to_csv(
+        tables_dir / "contact_occupancy_all_replicates_with_zeros.csv",
+        index=False,
+    )
     extra.to_csv(tables_dir / "extra_metrics_timeseries_stride.csv", index=False)
     extra_summary.to_csv(tables_dir / "extra_metrics_summary.csv", index=False)
-    hbonds_df.to_csv(tables_dir / "ligand_protein_hbond_candidates.csv", index=False)
+    hbonds_df.to_csv(tables_dir / "ligand_protein_hbond_occupancy.csv", index=False)
+    thermodynamic_qc.to_csv(tables_dir / "thermodynamic_qc_summary.csv", index=False)
 
     system_summary = (
         summaries.groupby("system")
@@ -452,10 +523,12 @@ def main() -> int:
             n=("replicate", "count"),
             backbone_rmsd_A_mean=("backbone_rmsd_A_mean", "mean"),
             backbone_rmsd_A_sd=("backbone_rmsd_A_mean", "std"),
-            ligand_rmsd_A_mean=("ligand_rmsd_A_mean", "mean"),
-            ligand_rmsd_A_sd=("ligand_rmsd_A_mean", "std"),
+            ligand_pose_rmsd_A_mean=("ligand_pose_rmsd_A_mean", "mean"),
+            ligand_pose_rmsd_A_sd=("ligand_pose_rmsd_A_mean", "std"),
+            ligand_internal_rmsd_A_mean=("ligand_internal_rmsd_A_mean", "mean"),
+            ligand_internal_rmsd_A_sd=("ligand_internal_rmsd_A_mean", "std"),
             backbone_rmsd_A_final_mean=("backbone_rmsd_A_final", "mean"),
-            ligand_rmsd_A_final_mean=("ligand_rmsd_A_final", "mean"),
+            ligand_pose_rmsd_A_final_mean=("ligand_pose_rmsd_A_final", "mean"),
             contact_residues_mean=("n_contact_residues", "mean"),
         )
         .reset_index()
@@ -463,7 +536,7 @@ def main() -> int:
     system_summary.to_csv(tables_dir / "system_level_summary.csv", index=False)
 
     contact_summary = (
-        contacts.groupby(["system", "residue"], as_index=False)
+        complete_contacts.groupby(["system", "residue"], as_index=False)
         .agg(mean_occupancy=("occupancy", "mean"), sd_occupancy=("occupancy", "std"), n_reps=("replicate", "nunique"))
         .sort_values(["system", "mean_occupancy"], ascending=[True, False])
     )
@@ -481,9 +554,9 @@ def main() -> int:
     plot_rmsd(rmsd, out_dir)
     plot_rmsd_distribution(rmsd, out_dir)
     plot_rmsf(rmsf, out_dir)
-    plot_contacts(contacts, out_dir)
+    plot_contacts(complete_contacts, out_dir)
     plot_extra_timeseries(extra, out_dir)
-    plot_hbond_candidates(hbonds_df, out_dir)
+    plot_hbond_occupancy(hbonds_df, out_dir)
 
     print(f"Wrote publication analysis to {out_dir}")
     return 0
