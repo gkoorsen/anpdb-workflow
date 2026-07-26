@@ -297,8 +297,10 @@ python scripts/run_primary_md_analysis.py --scope all
 
 The per-run analyzer performs PBC imaging before receptor alignment and writes:
 
-- `rmsd_timeseries.csv`, containing backbone RMSD, ligand pose RMSD and ligand
-  internal RMSD as separate quantities;
+- `alignment_core_atoms.csv`, documenting the target-specific alignment
+  reference;
+- `rmsd_timeseries.csv`, containing protein alignment-core RMSD, global backbone
+  RMSD, ligand pose RMSD and ligand internal RMSD as separate quantities;
 - `rmsf_ca.csv`;
 - `contact_occupancy.csv`;
 - `pose_retention_timeseries.csv`;
@@ -307,6 +309,16 @@ The per-run analyzer performs PBC imaging before receptor alignment and writes:
 - `thermodynamic_timeseries.csv` when a production state log is available;
 - `thermodynamic_qc_summary.json`;
 - `analysis_summary.json`.
+
+For lipid-containing SGLT2 and OPRK1 systems, the default `auto` alignment mode
+uses frame-0 DSSP alpha-helical protein C-alpha atoms within +/-1.5 nm of the
+lipid-centre z coordinate. MAO-B defaults to all protein backbone atoms. Use
+`--alignment-selection` only for a predefined, documented override.
+
+Ligand geometry and hydrogen-bond topology use parameterized bonds from
+`system.xml`. Completed Amber runs without serialized systems fall back to the
+configured `prmtop`. PDB bonds are retained only for a connectivity comparison,
+not as the authoritative ligand graph.
 
 The thermodynamic summary reports the configured 1 atm Monte Carlo barostat
 target separately from observed state-log quantities. The saved production logs

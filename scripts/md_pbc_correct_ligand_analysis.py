@@ -20,12 +20,14 @@ import pandas as pd
 
 try:
     from md_analyze_production import (
+        alignment_core_indices,
         coordinate_rmsd_A,
         image_trajectory,
         trajectory_times_ns,
     )
 except ModuleNotFoundError:
     from scripts.md_analyze_production import (
+        alignment_core_indices,
         coordinate_rmsd_A,
         image_trajectory,
         trajectory_times_ns,
@@ -58,15 +60,23 @@ def analyze_run(run_dir: Path, ligand_resname: str, stride: int, write_imaged: b
     analysis_dir.mkdir(exist_ok=True)
 
     traj = md.load(str(traj_path), top=str(top_path), stride=stride)
-    imaged = image_trajectory(traj)
+    raw_ligand = ligand_indices(traj.topology, ligand_resname)
+    imaged = image_trajectory(traj, excluded_anchor_indices=raw_ligand)
 
     if write_imaged:
         suffix = "" if stride == 1 else f"_stride{stride}"
         imaged.save_dcd(str(analysis_dir / f"production_pbc_imaged{suffix}.dcd"))
 
     top = imaged.topology
-    backbone = top.select("protein and backbone")
     ligand = ligand_indices(top, ligand_resname)
+    alignment_core, _alignment_metadata = alignment_core_indices(
+        imaged,
+        "auto",
+        None,
+        1.5,
+        analysis_dir,
+        excluded_indices=ligand,
+    )
     ligand_set = set(int(idx) for idx in ligand)
     protein = np.array([idx for idx in top.select("protein") if int(idx) not in ligand_set], dtype=int)
     protein_heavy = np.array(
@@ -82,7 +92,7 @@ def analyze_run(run_dir: Path, ligand_resname: str, stride: int, write_imaged: b
     )
     ligand_heavy = heavy_indices(top, ligand)
 
-    imaged.superpose(imaged, frame=0, atom_indices=backbone)
+    imaged.superpose(imaged, frame=0, atom_indices=alignment_core)
     pose_rmsd_A = coordinate_rmsd_A(imaged, ligand_heavy)
 
     neighbors_4A = md.compute_neighbors(imaged, 0.4, ligand_heavy, haystack_indices=protein_heavy, periodic=False)

@@ -36,8 +36,14 @@ binding region.
 Trajectories are analysed with MDTraj, pandas and NumPy. Before alignment or
 distance calculations, periodic trajectories are imaged around the protein so
 that the receptor and ligand occupy the same periodic image. Each imaged
-trajectory is then superposed on production frame 0 using protein backbone atoms.
-The original DCD is never modified.
+trajectory is then superposed on production frame 0. For the lipid-containing
+SGLT2 and OPRK1 systems, the alignment reference comprises protein C-alpha atoms
+assigned as alpha-helical by DSSP in the equilibrated starting structure and
+whose starting z coordinates lie within 1.5 nm of the lipid-centre z coordinate.
+This membrane-slab definition selects the transmembrane helical C-alpha core
+independently of the subsequent trajectory behaviour. MAO-B is aligned using the
+complete protein backbone. The selected atoms are exported for every replicate,
+and the original DCD is never modified.
 
 All frames are used for time-series plots. At the configured 50 ps trajectory
 interval, a complete 100 ns trajectory contains approximately 2,000 frames.
@@ -47,9 +53,10 @@ individual frames as independent replicates.
 
 ## Structural Stability and Pose Retention
 
-Protein backbone RMSD is calculated directly from the receptor-aligned
-coordinates. Per-residue C-alpha RMSF is calculated around each atom's mean
-position after receptor alignment.
+Protein alignment-core RMSD is the primary protein stability metric. Whole-protein
+backbone RMSD is calculated separately from the same aligned coordinates as a
+global quality-control descriptor. Per-residue C-alpha RMSF is calculated around
+each atom's mean position after core alignment.
 
 Two different ligand RMSD quantities are retained and must not be conflated:
 
@@ -74,11 +81,23 @@ are averaged across replicates, a residue absent from a replicate contact table
 contributes zero rather than being omitted. A consensus persistent contact can
 be defined as occupancy of at least 50% in at least two of three replicates.
 
-Candidate ligand-protein hydrogen-bond atom triplets are identified from the
-bonded topology and evaluated frame by frame. A hydrogen bond is present when the
-donor-acceptor distance is no greater than 3.5 A and the donor-hydrogen-acceptor
-angle is at least 120 degrees. Occupancy is reported for each donor-acceptor
-pair; hydrogen bonds with occupancy of at least 20% are highlighted.
+Ligand connectivity is obtained from the parameterized OpenMM system rather than
+inferred from coordinates or accepted directly from PDB `CONECT` records.
+Harmonic-bond and constrained particle pairs are read from `system.xml` and
+mapped to atom labels through the matching trajectory topology. The Amber
+`prmtop` is the parameterized fallback for completed MAO-B runs that predate
+`system.xml` export. PDB and parameterized ligand adjacency are compared as a
+connectivity audit, but the parameterized graph is authoritative for geometry
+quality control and hydrogen-bond donor-hydrogen adjacency.
+
+Candidate ligand-protein hydrogen-bond atom triplets are identified from this
+parameterized bond graph and evaluated frame by frame. A hydrogen bond is present
+when the donor-acceptor distance is no greater than 3.5 A and the
+donor-hydrogen-acceptor angle is at least 120 degrees. Occupancy is reported for
+each donor-acceptor pair; hydrogen bonds with occupancy of at least 20% are
+highlighted. Because `system.xml` stores adjacency but not chemical bond orders
+or aromaticity, two-dimensional ligand depictions use the canonical RDKit/OpenFF
+molecule mapped to the parameterized particles.
 
 ## Replicate Summaries and Figures
 
@@ -87,9 +106,9 @@ reported as the mean and standard deviation of the three replicate means.
 Individual MD frames are not treated as independent observations for hypothesis
 testing.
 
-The main MD stability figure reports protein backbone RMSD, ligand pose RMSD,
+The main MD stability figure reports protein alignment-core RMSD, ligand pose RMSD,
 late-stage pose/contact retention and consensus persistent contacts. Per-replicate
-traces, C-alpha RMSF, ligand SASA, membrane-position quality control,
+traces, whole-backbone RMSD, C-alpha RMSF, ligand SASA, membrane-position quality control,
 thermodynamic summaries, hydrogen-bond occupancies and 20 ns block summaries are
 retained for supplementary reporting.
 

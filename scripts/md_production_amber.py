@@ -136,8 +136,14 @@ def platform_properties(config: dict[str, Any]) -> tuple[str, dict[str, str]]:
     return platform_name, properties
 
 
-def build_simulation(config: dict[str, Any], paths: dict[str, Any]):
-    from openmm import LangevinMiddleIntegrator, MonteCarloBarostat, Platform, unit
+def build_simulation(config: dict[str, Any], paths: dict[str, Any], run_dir: Path):
+    from openmm import (
+        LangevinMiddleIntegrator,
+        MonteCarloBarostat,
+        Platform,
+        XmlSerializer,
+        unit,
+    )
     from openmm.app import AmberInpcrdFile, AmberPrmtopFile, HBonds, PME, Simulation
 
     inpcrd = AmberInpcrdFile(str(paths["inpcrd"]))
@@ -167,6 +173,8 @@ def build_simulation(config: dict[str, Any], paths: dict[str, Any]):
         float(deep_get(config, "simulation.timestep_fs", 2.0)) * unit.femtoseconds,
     )
     integrator.setRandomNumberSeed(int(deep_get(config, "run.seed", 1)))
+    (run_dir / "system.xml").write_text(XmlSerializer.serialize(system))
+    (run_dir / "integrator.xml").write_text(XmlSerializer.serialize(integrator))
 
     platform_name, properties = platform_properties(config)
     platform = Platform.getPlatformByName(platform_name)
@@ -221,7 +229,7 @@ def run_protocol(config: dict[str, Any], paths: dict[str, Any], run_dir: Path, r
 
     log_status(f"Starting Amber MD in {run_dir}")
     log_status(f"Loading inputs: prmtop={paths['prmtop']} inpcrd={paths['inpcrd']}")
-    sim, platform, properties = build_simulation(config, paths)
+    sim, platform, properties = build_simulation(config, paths, run_dir)
     log_status(f"Simulation created on platform={platform.getName()} properties={properties}")
     timestep_fs = float(deep_get(config, "simulation.timestep_fs", 2.0))
     production_steps = ns_to_steps(float(deep_get(config, "simulation.production_ns", 100.0)), timestep_fs)

@@ -87,6 +87,7 @@ def ensure_run_ready(run: RunSpec) -> None:
         run.run_dir / "run_manifest.json",
         run.run_dir / "analysis" / "analysis_summary.json",
         run.run_dir / "analysis" / "rmsd_timeseries.csv",
+        run.run_dir / "analysis" / "alignment_core_atoms.csv",
         run.run_dir / "analysis" / "rmsf_ca.csv",
         run.run_dir / "analysis" / "contact_occupancy.csv",
         run.run_dir / "analysis" / "pose_retention_timeseries.csv",
@@ -220,16 +221,31 @@ def compute_extra_metrics(run: RunSpec, stride: int) -> tuple[pd.DataFrame, pd.D
         top=str(run.run_dir / "equilibrated.pdb"),
         stride=stride,
     )
-    traj = image_trajectory(raw_traj)
+    raw_ligand = np.array(
+        [
+            atom.index
+            for atom in raw_traj.topology.atoms
+            if atom.residue.name == run.ligand_resname
+        ],
+        dtype=int,
+    )
+    traj = image_trajectory(
+        raw_traj,
+        excluded_anchor_indices=raw_ligand,
+    )
     top = traj.topology
     ligand = np.array([atom.index for atom in top.atoms if atom.residue.name == run.ligand_resname], dtype=int)
     ligand_set = set(int(index) for index in ligand)
     protein = np.array([int(index) for index in top.select("protein") if int(index) not in ligand_set], dtype=int)
-    backbone = np.array([int(index) for index in top.select("protein and backbone") if int(index) not in ligand_set], dtype=int)
-    if len(protein) == 0 or len(backbone) == 0 or len(ligand) == 0:
-        raise SystemExit(f"Could not select protein/backbone/ligand atoms for {run.run_dir}")
+    alignment_core = pd.read_csv(
+        run.run_dir / "analysis" / "alignment_core_atoms.csv"
+    )["atom_index"].to_numpy(dtype=int)
+    if len(protein) == 0 or len(alignment_core) == 0 or len(ligand) == 0:
+        raise SystemExit(
+            f"Could not select protein/alignment-core/ligand atoms for {run.run_dir}"
+        )
 
-    traj.superpose(traj, frame=0, atom_indices=backbone)
+    traj.superpose(traj, frame=0, atom_indices=alignment_core)
     times_ns = trajectory_times_ns(run.run_dir, traj, stride)
 
     protein_traj = traj.atom_slice(protein)
@@ -343,7 +359,7 @@ def savefig(fig: plt.Figure, out_dir: Path, name: str) -> None:
 def plot_rmsd(rmsd: pd.DataFrame, out_dir: Path) -> None:
     fig, axes = plt.subplots(2, len(SYSTEMS), figsize=(3.4 * len(SYSTEMS), 7), sharex=True, squeeze=False)
     for col, title, row in [
-        ("backbone_rmsd_A", "Backbone RMSD", 0),
+        ("protein_core_rmsd_A", "Protein alignment-core RMSD", 0),
         ("ligand_pose_rmsd_A", "Ligand pose RMSD", 1),
     ]:
         for ax, system in zip(axes[row], SYSTEMS, strict=True):
@@ -356,15 +372,15 @@ def plot_rmsd(rmsd: pd.DataFrame, out_dir: Path) -> None:
             if row == 1:
                 ax.set_xlabel("Time (ns)")
             ax.legend(frameon=False, fontsize=8)
-    fig.suptitle("Protein backbone and ligand RMSD across 100 ns production replicates")
-    savefig(fig, out_dir, "fig01_backbone_ligand_rmsd")
+    fig.suptitle("Protein alignment-core and ligand pose RMSD across 100 ns production replicates")
+    savefig(fig, out_dir, "fig01_core_ligand_pose_rmsd")
 
 
 def plot_rmsd_distribution(rmsd: pd.DataFrame, out_dir: Path) -> None:
     fig, axes = plt.subplots(1, 2, figsize=(max(10, 1.6 * len(SYSTEMS)), 4))
     positions = np.arange(1, len(SYSTEMS) + 1)
     for ax, col, title in [
-        (axes[0], "backbone_rmsd_A", "Backbone RMSD"),
+        (axes[0], "protein_core_rmsd_A", "Protein alignment-core RMSD"),
         (axes[1], "ligand_pose_rmsd_A", "Ligand pose RMSD"),
     ]:
         values = [rmsd.loc[rmsd["system"] == system, col].to_numpy() for system in SYSTEMS]
@@ -378,6 +394,33 @@ def plot_rmsd_distribution(rmsd: pd.DataFrame, out_dir: Path) -> None:
         ax.set_title(title)
         ax.grid(axis="y", alpha=0.25)
     savefig(fig, out_dir, "fig02_rmsd_distributions")
+
+
+def plot_global_backbone_rmsd(rmsd: pd.DataFrame, out_dir: Path) -> None:
+    fig, axes = plt.subplots(
+        1,
+        len(SYSTEMS),
+        figsize=(3.4 * len(SYSTEMS), 3.6),
+        sharex=True,
+        squeeze=False,
+    )
+    for ax, system in zip(axes[0], SYSTEMS, strict=True):
+        sub = rmsd[rmsd["system"] == system]
+        for replicate, replicate_df in sub.groupby("replicate"):
+            ax.plot(
+                replicate_df["time_ns"],
+                replicate_df["backbone_rmsd_A"],
+                lw=0.9,
+                alpha=0.85,
+                label=replicate,
+            )
+        ax.set_title(system)
+        ax.set_xlabel("Time (ns)")
+        ax.set_ylabel("Global backbone RMSD (A)")
+        ax.grid(alpha=0.25)
+        ax.legend(frameon=False, fontsize=8)
+    fig.suptitle("Whole-protein backbone RMSD after alignment-core superposition")
+    savefig(fig, out_dir, "figS01_global_backbone_rmsd")
 
 
 def plot_rmsf(rmsf: pd.DataFrame, out_dir: Path) -> None:
@@ -521,12 +564,15 @@ def main() -> int:
         summaries.groupby("system")
         .agg(
             n=("replicate", "count"),
+            protein_core_rmsd_A_mean=("protein_core_rmsd_A_mean", "mean"),
+            protein_core_rmsd_A_sd=("protein_core_rmsd_A_mean", "std"),
             backbone_rmsd_A_mean=("backbone_rmsd_A_mean", "mean"),
             backbone_rmsd_A_sd=("backbone_rmsd_A_mean", "std"),
             ligand_pose_rmsd_A_mean=("ligand_pose_rmsd_A_mean", "mean"),
             ligand_pose_rmsd_A_sd=("ligand_pose_rmsd_A_mean", "std"),
             ligand_internal_rmsd_A_mean=("ligand_internal_rmsd_A_mean", "mean"),
             ligand_internal_rmsd_A_sd=("ligand_internal_rmsd_A_mean", "std"),
+            protein_core_rmsd_A_final_mean=("protein_core_rmsd_A_final", "mean"),
             backbone_rmsd_A_final_mean=("backbone_rmsd_A_final", "mean"),
             ligand_pose_rmsd_A_final_mean=("ligand_pose_rmsd_A_final", "mean"),
             contact_residues_mean=("n_contact_residues", "mean"),
@@ -553,6 +599,7 @@ def main() -> int:
     )
     plot_rmsd(rmsd, out_dir)
     plot_rmsd_distribution(rmsd, out_dir)
+    plot_global_backbone_rmsd(rmsd, out_dir)
     plot_rmsf(rmsf, out_dir)
     plot_contacts(complete_contacts, out_dir)
     plot_extra_timeseries(extra, out_dir)
