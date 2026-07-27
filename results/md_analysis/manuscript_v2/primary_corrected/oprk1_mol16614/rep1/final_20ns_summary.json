@@ -1,0 +1,54 @@
+{
+  "window_ns": "80-100",
+  "frames": 400,
+  "metrics": {
+    "protein_core_rmsd_A": {
+      "mean": 1.6188137531280518,
+      "sd": 0.09633008390665054
+    },
+    "backbone_rmsd_A": {
+      "mean": 2.6891894340515137,
+      "sd": 0.1317078024148941
+    },
+    "ligand_pose_rmsd_A": {
+      "mean": 5.255073070526123,
+      "sd": 0.44584307074546814
+    },
+    "ligand_internal_rmsd_A": {
+      "mean": 0.744376003742218,
+      "sd": 0.24761533737182617
+    },
+    "ligand_com_displacement_A": {
+      "mean": 2.9917013328842814,
+      "sd": 0.521099062432713
+    },
+    "ligand_pocket_com_distance_A": {
+      "mean": 2.5350202434796243,
+      "sd": 0.3375453239996782
+    },
+    "protein_ligand_min_heavy_distance_A": {
+      "mean": 3.145963092148304,
+      "sd": 0.12255825004505431
+    },
+    "contact_atoms_4A": {
+      "mean": 27.235,
+      "sd": 4.316985744102818
+    },
+    "contact_residues_4A": {
+      "mean": 9.455,
+      "sd": 1.2110497941909841
+    },
+    "initial_contact_residue_fraction_4A": {
+      "mean": 0.76925,
+      "sd": 0.08121531455517329
+    },
+    "ligand_sasa_nm2": {
+      "mean": 1.0604130029678345,
+      "sd": 0.14555245637893677
+    },
+    "ligand_z_from_membrane_center_A": {
+      "mean": 5.910835447612064,
+      "sd": 1.0603459873158707
+    }
+  }
+}

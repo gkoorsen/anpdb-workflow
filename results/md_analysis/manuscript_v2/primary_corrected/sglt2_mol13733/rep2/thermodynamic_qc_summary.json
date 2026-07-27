@@ -1,0 +1,65 @@
+{
+  "records": 2000,
+  "available_fields": [
+    "step",
+    "time_ps",
+    "elapsed_time_ns",
+    "potential_energy_kJ_mol",
+    "kinetic_energy_kJ_mol",
+    "total_energy_kJ_mol",
+    "temperature_K",
+    "volume_nm3",
+    "density_g_mL",
+    "speed_ns_day"
+  ],
+  "instantaneous_pressure_timeseries_available": false,
+  "barostat": {
+    "configured": true,
+    "target_pressure_atm": 1.0,
+    "interval_steps": 25
+  },
+  "metrics": {
+    "potential_energy_kJ_mol": {
+      "mean": -1808632.4731235732,
+      "sd": 1515.7358144483146,
+      "min": -1814130.6511953464,
+      "max": -1803132.2772059783,
+      "linear_slope_per_ns": -9.582217285846637
+    },
+    "kinetic_energy_kJ_mol": {
+      "mean": 473306.3683876766,
+      "sd": 1126.5094577853472,
+      "min": 469252.4930171191,
+      "max": 477084.1675631545,
+      "linear_slope_per_ns": 0.3190647137889754
+    },
+    "total_energy_kJ_mol": {
+      "mean": -1335326.104735897,
+      "sd": 1907.7110889199112,
+      "min": -1342095.4060304414,
+      "max": -1329134.0198179148,
+      "linear_slope_per_ns": -9.263152572049723
+    },
+    "temperature_K": {
+      "mean": 310.2529224074684,
+      "sd": 0.7384283727010515,
+      "min": 307.59560198079515,
+      "max": 312.7292745394992,
+      "linear_slope_per_ns": 0.00020914732296291243
+    },
+    "volume_nm3": {
+      "mean": 1634.930852007614,
+      "sd": 1.9704656177481457,
+      "min": 1628.1061906903492,
+      "max": 1641.2349493383697,
+      "linear_slope_per_ns": -0.007778651327896099
+    },
+    "density_g_mL": {
+      "mean": 1.0223415321872262,
+      "sd": 0.0012321034931051381,
+      "min": 1.018413168897729,
+      "max": 1.0266254714949905,
+      "linear_slope_per_ns": 4.865772597065125e-06
+    }
+  }
+}
