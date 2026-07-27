@@ -112,10 +112,13 @@ traces, whole-backbone RMSD, C-alpha RMSF, ligand SASA, membrane-position qualit
 thermodynamic summaries, hydrogen-bond occupancies and 20 ns block summaries are
 retained for supplementary reporting.
 
-Representative interaction structures should be selected as medoids of dominant
-late-stage ligand-pose clusters rather than as arbitrary final frames. Interaction
-diagrams must use the parameterized ligand topology for connectivity and may be
-annotated with trajectory-derived contact and hydrogen-bond occupancies.
+Representative interaction structures are selected as medoids of final-20-ns
+ligand-pose clusters rather than as arbitrary final frames. Pairwise ligand
+heavy-atom pose RMSDs are calculated after membrane-core receptor alignment,
+without fitting the ligand to itself, and clustered using average-linkage
+hierarchical clustering with a 2.0 A distance threshold. Interaction diagrams
+must use the parameterized ligand topology for connectivity and may be annotated
+with trajectory-derived contact and hydrogen-bond occupancies.
 
 ## Energetic Interpretation
 
@@ -125,8 +128,12 @@ because solvent, membrane, reorganization and entropic terms are omitted.
 Absolute energetic values must not be compared between the OpenMM/OpenFF
 membrane systems and the Amber-prepared MAO-B system.
 
-If endpoint MM/GBSA calculations are added, the principal ranking comparison
-should be restricted to the three SGLT2 ligands, which share a receptor and
-parameterization workflow. Each replicate should be analysed independently and
-replicate means and standard deviations reported. MM/GBSA estimates are
-supportive computational evidence, not experimental validation.
+Endpoint MM/PB(GB)SA comparisons are restricted to the three SGLT2 ligands,
+which share a receptor and parameterization workflow. One hundred evenly spaced
+snapshots are selected from the final 20 ns of each replicate. The comparative
+analysis includes an aqueous MM/GBSA sensitivity model and an implicit-membrane
+MM/PBSA model after translating the explicit lipid center to z=0. Each
+replicate is analysed independently and replicate means and standard deviations
+are reported. Configurational entropy is omitted. These endpoint estimates are
+supportive computational evidence, not exact binding free energies or
+experimental validation.

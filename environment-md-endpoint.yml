@@ -1,0 +1,15 @@
+name: anpdb-md-endpoint
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - ambertools>=24
+  - openmm=8.2.*
+  - parmed
+  - mdtraj
+  - numpy
+  - pandas
+  - scipy
+  - netcdf4
+  - openmpi
+  - mpi4py

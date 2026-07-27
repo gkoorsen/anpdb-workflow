@@ -37,6 +37,9 @@ python scripts/check_openmm_cuda.py --device-index 0 --precision mixed
 
 If CUDA is unavailable, fix the NVIDIA driver/WSL/CUDA/OpenMM stack before running production configs.
 
+Endpoint pose clustering and MM/PB(GB)SA use a separate AmberTools environment.
+After production is complete, follow `docs/md_endpoint_analysis.md`.
+
 For the portable SGLT2 Mol_13144 replicate-2 RunPod workflow, including the
 transfer-package builder and cross-GPU XML-state restart, see
 [`docs/runpod_sglt2_rep2.md`](runpod_sglt2_rep2.md).

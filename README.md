@@ -26,6 +26,8 @@ The short OpenMM MD workflow in `scripts/md_run.py` was built for initial pose-s
 See `docs/repo_bootstrap.md` for GitHub and WSL setup notes.
 
 See `docs/md_production_runbook.md` for production MD setup, GPU checks, input staging, run commands, resume behavior, and analysis.
+See `docs/md_endpoint_analysis.md` for final-20-ns pose clustering and the
+SGLT2-only endpoint MM/PB(GB)SA workflow.
 For the portable SGLT2 Mol_13144 replicate-2 cloud workflow, see `docs/runpod_sglt2_rep2.md`.
 For sequential RunPod production of SGLT2 Mol_13733 replicates 1–3, see `docs/runpod_sglt2_mol13733.md`.
 For queued RunPod production of SGLT2 Mol_15088 replicates 2–3, see `docs/runpod_sglt2_mol15088_reps2-3.md`.
