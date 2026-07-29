@@ -1,0 +1,2 @@
+cluster_id,frames,fraction,medoid_selected_index,medoid_frame_index,medoid_time_ns,mean_distance_to_medoid_A,median_distance_to_medoid_A,maximum_distance_to_medoid_A
+1,401,1.0,267,1866,93.29999989053613,0.7109379554474755,0.6827082840626568,1.5368468783975888

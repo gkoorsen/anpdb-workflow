@@ -725,6 +725,63 @@ def assign_amber_radii(structure, radii_set: str) -> None:
         )
 
 
+def assign_openmm_constraint_bond_types(structure, system) -> dict:
+    """Make constrained OpenMM bonds serializable as an Amber topology.
+
+    ParmEd leaves bonds represented only by OpenMM constraints without a
+    ``BondType``. Amber prmtop serialization requires every topological bond to
+    have one. Constrained bonds have no harmonic energy term in the serialized
+    OpenMM System, so they are assigned their authoritative constraint distance
+    and a zero force constant. The conversion fails if an untyped bond is not
+    an exact System constraint.
+    """
+    import parmed as pmd
+    from openmm import unit
+
+    constraint_distances = {}
+    for index in range(system.getNumConstraints()):
+        atom1, atom2, distance = system.getConstraintParameters(index)
+        pair = tuple(sorted((int(atom1), int(atom2))))
+        constraint_distances[pair] = float(
+            distance.value_in_unit(unit.angstrom)
+        )
+
+    assigned = 0
+    bond_types_by_distance = {}
+    unmatched = []
+    for bond in structure.bonds:
+        if bond.type is not None:
+            continue
+        pair = tuple(sorted((bond.atom1.idx, bond.atom2.idx)))
+        distance = constraint_distances.get(pair)
+        if distance is None:
+            unmatched.append(pair)
+            continue
+        key = round(distance, 8)
+        bond_type = bond_types_by_distance.get(key)
+        if bond_type is None:
+            bond_type = pmd.BondType(k=0.0, req=distance)
+            structure.bond_types.append(bond_type)
+            bond_types_by_distance[key] = bond_type
+        bond.type = bond_type
+        assigned += 1
+
+    if unmatched:
+        fail(
+            f"ParmEd produced {len(unmatched)} untyped bond(s) that are not "
+            "serialized OpenMM constraints; refusing Amber conversion. "
+            f"First pairs: {unmatched[:10]}"
+        )
+    remaining = sum(bond.type is None for bond in structure.bonds)
+    if remaining:
+        fail(f"{remaining} untyped bond(s) remain after constraint conversion.")
+    return {
+        "untyped_constraint_bonds_assigned": assigned,
+        "unique_constraint_distances": len(bond_types_by_distance),
+        "assigned_force_constant_kcal_mol_A2": 0.0,
+    }
+
+
 def subset_structure(structure, indices: np.ndarray):
     mask = np.zeros(len(structure.atoms), dtype=bool)
     mask[np.asarray(indices, dtype=int)] = True
@@ -775,6 +832,10 @@ def prepare_amber_topologies(
         )
     if len(full.atoms) != system.getNumParticles():
         fail("ParmEd changed the atom count during OpenMM conversion.")
+    constraint_bond_conversion = assign_openmm_constraint_bond_types(
+        full,
+        system,
+    )
 
     complex_structure = subset_structure(full, prepared["complex"])
     receptor_structure = subset_structure(full, prepared["protein"])
@@ -835,6 +896,7 @@ def prepare_amber_topologies(
         "atom_counts": reloaded_counts,
         "charges_e": charges,
         "parmed_warnings": warning_messages,
+        "constraint_bond_conversion": constraint_bond_conversion,
         "openmm_system": force_manifest,
         "omitted_openmm_terms": [
             "Monte Carlo barostat: no potential-energy contribution",
@@ -1056,27 +1118,31 @@ def run_mmpbsa(
     mmpbsa_dir: Path,
     mpi_ranks: int,
     executable: str | None,
+    resume_completed: bool = False,
 ) -> list[dict]:
-    command = mmpbsa_command(mmpbsa_dir, mpi_ranks, executable)
-    write_json(
-        mmpbsa_dir / "mmpbsa_command.json",
-        {"argv": command, "working_directory": str(mmpbsa_dir)},
-    )
-    with (mmpbsa_dir / "mmpbsa.stdout.log").open("w") as log:
-        subprocess.run(
-            command,
-            cwd=mmpbsa_dir,
-            check=True,
-            stdout=log,
-            stderr=subprocess.STDOUT,
+    result_path = mmpbsa_dir / "FINAL_RESULTS_MMPBSA.dat"
+    rows = parse_mmpbsa_results(result_path) if resume_completed else []
+    if rows:
+        print(f"Reusing completed MMPBSA.py result: {result_path}", flush=True)
+    else:
+        command = mmpbsa_command(mmpbsa_dir, mpi_ranks, executable)
+        write_json(
+            mmpbsa_dir / "mmpbsa_command.json",
+            {"argv": command, "working_directory": str(mmpbsa_dir)},
         )
-    rows = parse_mmpbsa_results(
-        mmpbsa_dir / "FINAL_RESULTS_MMPBSA.dat"
-    )
+        with (mmpbsa_dir / "mmpbsa.stdout.log").open("w") as log:
+            subprocess.run(
+                command,
+                cwd=mmpbsa_dir,
+                check=True,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+            )
+        rows = parse_mmpbsa_results(result_path)
     if not rows:
         fail(
             "MMPBSA.py completed but no endpoint estimate could be parsed from "
-            f"{mmpbsa_dir / 'FINAL_RESULTS_MMPBSA.dat'}"
+            f"{result_path}"
         )
     pd.DataFrame(rows).to_csv(
         mmpbsa_dir / "mmpbsa_summary.csv",
@@ -1123,6 +1189,14 @@ def main() -> int:
     parser.add_argument("--mmpbsa-snapshots", type=int, default=100)
     parser.add_argument("--mpi-ranks", type=int, default=1)
     parser.add_argument("--mmpbsa-executable")
+    parser.add_argument(
+        "--resume-mmpbsa",
+        action="store_true",
+        help=(
+            "Reuse an existing FINAL_RESULTS_MMPBSA.dat only when both GB and "
+            "PB endpoint estimates can be parsed."
+        ),
+    )
     parser.add_argument("--amber-radii", default="mbondi2")
     parser.add_argument("--salt-molar", type=float, default=0.15)
     parser.add_argument("--solute-dielectric", type=float, default=4.0)
@@ -1278,6 +1352,7 @@ def main() -> int:
                 topology_result["directory"],
                 args.mpi_ranks,
                 args.mmpbsa_executable,
+                resume_completed=args.resume_mmpbsa,
             )
 
     summary = {

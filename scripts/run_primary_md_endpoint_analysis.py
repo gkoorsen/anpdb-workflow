@@ -232,6 +232,14 @@ def main() -> int:
     parser.add_argument("--mpi-ranks", type=int, default=1)
     parser.add_argument("--mmpbsa-executable")
     parser.add_argument(
+        "--resume-mmpbsa",
+        action="store_true",
+        help=(
+            "Reuse an existing complete, parseable MMPBSA.py result for a "
+            "replicate."
+        ),
+    )
+    parser.add_argument(
         "--skip-clustering",
         action="store_true",
         help="Reuse existing cluster outputs while preparing/running energies.",
@@ -312,6 +320,8 @@ def main() -> int:
             command.extend(
                 ["--mmpbsa-executable", args.mmpbsa_executable]
             )
+        if args.resume_mmpbsa:
+            command.append("--resume-mmpbsa")
         subprocess.run(command, cwd=ROOT, check=True)
         export_lightweight_outputs(system, replicate, run_dir)
         completed.append((system, replicate, run_dir))

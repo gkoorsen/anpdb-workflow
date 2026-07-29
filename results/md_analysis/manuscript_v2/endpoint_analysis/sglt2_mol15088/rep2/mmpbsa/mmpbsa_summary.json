@@ -1,0 +1,17 @@
+{
+  "models": [
+    {
+      "model": "GB",
+      "delta_endpoint_kcal_mol": -92.5452,
+      "snapshot_sd_kcal_mol": 4.5541,
+      "snapshot_sem_kcal_mol": 0.4554
+    },
+    {
+      "model": "PB-implicit-membrane",
+      "delta_endpoint_kcal_mol": -30.4332,
+      "snapshot_sd_kcal_mol": 3.5639,
+      "snapshot_sem_kcal_mol": 0.3564
+    }
+  ],
+  "interpretation": "Single-trajectory endpoint estimates without configurational entropy; compare only consistently parameterized ligands at the same target."
+}

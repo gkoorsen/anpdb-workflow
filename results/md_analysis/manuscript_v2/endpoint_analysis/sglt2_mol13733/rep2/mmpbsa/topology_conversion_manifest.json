@@ -1,0 +1,54 @@
+{
+  "source_system": "/mnt/d/userdata/gerrit md/anpdb-workflow/md_runs/production/sglt2_mol13733/rep2/system.xml",
+  "source_topology": "/mnt/d/userdata/gerrit md/anpdb-workflow/md_runs/production/sglt2_mol13733/rep2/system_solvated.pdb",
+  "conversion": "parmed.openmm.load_topology",
+  "radii_set": "mbondi2",
+  "atom_counts": {
+    "complex": 9141,
+    "receptor": 9084,
+    "ligand": 57
+  },
+  "charges_e": {
+    "complex": 7.000000000000062,
+    "receptor": 7.000000000000067,
+    "ligand": -2.858824288409778e-15
+  },
+  "parmed_warnings": [],
+  "constraint_bond_conversion": {
+    "untyped_constraint_bonds_assigned": 107507,
+    "unique_constraint_distances": 13,
+    "assigned_force_constant_kcal_mol_A2": 0.0
+  },
+  "openmm_system": {
+    "forces": [
+      {
+        "force": "HarmonicBondForce"
+      },
+      {
+        "force": "NonbondedForce"
+      },
+      {
+        "force": "PeriodicTorsionForce"
+      },
+      {
+        "force": "HarmonicAngleForce"
+      },
+      {
+        "force": "MonteCarloMembraneBarostat"
+      },
+      {
+        "force": "CustomExternalForce",
+        "global_parameters": {
+          "equilibration_restraint_k": 0.0
+        }
+      }
+    ],
+    "particles": 168855,
+    "constraints": 139602
+  },
+  "omitted_openmm_terms": [
+    "Monte Carlo barostat: no potential-energy contribution",
+    "CMMotionRemover: no potential-energy contribution",
+    "CustomExternalForce equilibration restraint: accepted only after confirming all default global parameters are zero"
+  ]
+}

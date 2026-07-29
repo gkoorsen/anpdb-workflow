@@ -1,0 +1,3 @@
+model,delta_endpoint_kcal_mol,snapshot_sd_kcal_mol,snapshot_sem_kcal_mol
+GB,-89.8098,4.0596,0.406
+PB-implicit-membrane,-25.1901,3.4975,0.3497

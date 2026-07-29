@@ -1,0 +1,51 @@
+{
+  "run_dir": "/mnt/d/userdata/gerrit md/anpdb-workflow/md_runs/production/sglt2_mol13733/rep2",
+  "trajectory_frames": 2000,
+  "trajectory_final_time_ns": 99.94999986769834,
+  "selected_late_window_ns": [
+    79.94999993638338,
+    99.94999986769834
+  ],
+  "selected_frames": 401,
+  "ligand_resname": "UNK",
+  "ligand_heavy_atoms": 31,
+  "parameterized_bond_source": "system.xml",
+  "alignment": {
+    "requested_mode": "auto",
+    "effective_mode": "membrane-core-ca",
+    "definition": "frame-0 alpha-helical protein C-alpha atoms with z coordinate within 1.50 nm of the lipid-center z",
+    "atom_count": 304,
+    "residue_count": 304,
+    "membrane_center_z_nm": 4.651510238647461,
+    "membrane_core_half_thickness_nm": 1.5
+  },
+  "source_residue_numbering_applied": true,
+  "clustering": {
+    "method": "average-linkage hierarchical clustering",
+    "distance_metric": "ligand heavy-atom pose RMSD after receptor-core alignment; the ligand was not fitted to itself",
+    "distance_threshold_A": 2.0,
+    "selected_frames": 401,
+    "clusters": 1,
+    "dominant_cluster_id": 1,
+    "dominant_cluster_fraction": 1.0,
+    "dominant_cluster_medoid_frame_index": 1866,
+    "dominant_cluster_medoid_time_ns": 93.29999989053613,
+    "mean_silhouette": null
+  },
+  "mmpbsa_prepared": true,
+  "mmpbsa_completed": true,
+  "mmpbsa_results": [
+    {
+      "model": "GB",
+      "delta_endpoint_kcal_mol": -68.9091,
+      "snapshot_sd_kcal_mol": 3.9676,
+      "snapshot_sem_kcal_mol": 0.3968
+    },
+    {
+      "model": "PB-implicit-membrane",
+      "delta_endpoint_kcal_mol": -14.737,
+      "snapshot_sd_kcal_mol": 3.106,
+      "snapshot_sem_kcal_mol": 0.3106
+    }
+  ]
+}

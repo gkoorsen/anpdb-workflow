@@ -1,0 +1,12 @@
+{
+  "method": "average-linkage hierarchical clustering",
+  "distance_metric": "ligand heavy-atom pose RMSD after receptor-core alignment; the ligand was not fitted to itself",
+  "distance_threshold_A": 2.0,
+  "selected_frames": 401,
+  "clusters": 2,
+  "dominant_cluster_id": 1,
+  "dominant_cluster_fraction": 0.9925187032418953,
+  "dominant_cluster_medoid_frame_index": 1934,
+  "dominant_cluster_medoid_time_ns": 96.69999987885966,
+  "mean_silhouette": 0.21046337334607293
+}

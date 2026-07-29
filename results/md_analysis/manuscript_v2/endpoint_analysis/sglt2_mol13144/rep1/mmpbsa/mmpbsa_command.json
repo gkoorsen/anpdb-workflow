@@ -1,0 +1,26 @@
+{
+  "argv": [
+    "/home/farhahna/micromamba/envs/anpdb-md-endpoint/bin/mpirun",
+    "-np",
+    "4",
+    "/home/farhahna/micromamba/envs/anpdb-md-endpoint/bin/MMPBSA.py.MPI",
+    "-O",
+    "-i",
+    "mmpbsa.in",
+    "-o",
+    "FINAL_RESULTS_MMPBSA.dat",
+    "-eo",
+    "FINAL_RESULTS_MMPBSA.csv",
+    "-sp",
+    "complex.prmtop",
+    "-cp",
+    "complex.prmtop",
+    "-rp",
+    "receptor.prmtop",
+    "-lp",
+    "ligand.prmtop",
+    "-y",
+    "complex_snapshots.nc"
+  ],
+  "working_directory": "/mnt/d/userdata/gerrit md/anpdb-workflow/md_runs/production/sglt2_mol13144/rep1/endpoint_analysis/mmpbsa"
+}

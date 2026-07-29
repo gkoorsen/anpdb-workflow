@@ -1,0 +1,69 @@
+{
+  "scope": "all",
+  "mode": "run",
+  "completed_runs": [
+    {
+      "system": "sglt2_mol13144",
+      "replicate": 1,
+      "run_dir": "/mnt/d/userdata/gerrit md/anpdb-workflow/md_runs/production/sglt2_mol13144/rep1"
+    },
+    {
+      "system": "sglt2_mol13144",
+      "replicate": 2,
+      "run_dir": "/mnt/d/userdata/gerrit md/anpdb-workflow/md_runs/production/sglt2_mol13144/rep2"
+    },
+    {
+      "system": "sglt2_mol13144",
+      "replicate": 3,
+      "run_dir": "/mnt/d/userdata/gerrit md/anpdb-workflow/md_runs/production/sglt2_mol13144/rep3"
+    },
+    {
+      "system": "sglt2_mol13733",
+      "replicate": 1,
+      "run_dir": "/mnt/d/userdata/gerrit md/anpdb-workflow/md_runs/production/sglt2_mol13733/rep1"
+    },
+    {
+      "system": "sglt2_mol13733",
+      "replicate": 2,
+      "run_dir": "/mnt/d/userdata/gerrit md/anpdb-workflow/md_runs/production/sglt2_mol13733/rep2"
+    },
+    {
+      "system": "sglt2_mol13733",
+      "replicate": 3,
+      "run_dir": "/mnt/d/userdata/gerrit md/anpdb-workflow/md_runs/production/sglt2_mol13733/rep3"
+    },
+    {
+      "system": "sglt2_mol15088",
+      "replicate": 1,
+      "run_dir": "/mnt/d/userdata/gerrit md/anpdb-workflow/md_runs/production/sglt2_mol15088/rep1"
+    },
+    {
+      "system": "sglt2_mol15088",
+      "replicate": 2,
+      "run_dir": "/mnt/d/userdata/gerrit md/anpdb-workflow/md_runs/production/sglt2_mol15088/rep2"
+    },
+    {
+      "system": "sglt2_mol15088",
+      "replicate": 3,
+      "run_dir": "/mnt/d/userdata/gerrit md/anpdb-workflow/md_runs/production/sglt2_mol15088/rep3"
+    },
+    {
+      "system": "oprk1_mol16614",
+      "replicate": 1,
+      "run_dir": "/mnt/d/userdata/gerrit md/anpdb-workflow/md_runs/production/oprk1_mol16614/rep1"
+    },
+    {
+      "system": "oprk1_mol16614",
+      "replicate": 2,
+      "run_dir": "/mnt/d/userdata/gerrit md/anpdb-workflow/md_runs/production/oprk1_mol16614/rep2"
+    },
+    {
+      "system": "oprk1_mol16614",
+      "replicate": 3,
+      "run_dir": "/mnt/d/userdata/gerrit md/anpdb-workflow/md_runs/production/oprk1_mol16614/rep3"
+    }
+  ],
+  "skipped_runs": [],
+  "mmpbsa_scope": "SGLT2 only; within-target comparison across Mol_13144, Mol_13733 and Mol_15088",
+  "replication_policy": "Independent replicate means are the unit of replication; individual snapshots are not treated as independent samples."
+}

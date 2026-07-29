@@ -1,0 +1,33 @@
+{
+  "scope": "single-trajectory comparative endpoint MM/PB(GB)SA; configurational entropy not included",
+  "trajectory": "/mnt/d/userdata/gerrit md/anpdb-workflow/md_runs/production/sglt2_mol15088/rep2/endpoint_analysis/mmpbsa/complex_snapshots.nc",
+  "snapshots": 100,
+  "window_ns": [
+    79.94999993638338,
+    99.94999986769834
+  ],
+  "models": {
+    "GB": {
+      "igb": 5,
+      "salt_molar": 0.15,
+      "membrane": "not represented; sensitivity model only"
+    },
+    "PB": {
+      "implicit_membrane": true,
+      "solute_dielectric": 4.0,
+      "membrane_dielectric": 7.0,
+      "solvent_dielectric": 80.0,
+      "membrane_center_z_A": 0.0,
+      "membrane_thickness_A": 40.0,
+      "salt_molar": 0.15
+    }
+  },
+  "comparison_policy": "Use replicate means and standard deviations; compare only the three SGLT2 ligands generated with the same receptor and parameterization workflow.",
+  "limitations": [
+    "The result is an endpoint estimate, not an alchemical free energy.",
+    "Configurational entropy is omitted.",
+    "The GB calculation is aqueous and does not represent the membrane.",
+    "The PB calculation replaces explicit lipids with an implicit membrane slab.",
+    "Individual trajectory frames are not independent replicates."
+  ]
+}

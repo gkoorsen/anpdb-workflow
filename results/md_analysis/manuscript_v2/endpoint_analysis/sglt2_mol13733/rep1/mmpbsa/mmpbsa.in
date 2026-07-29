@@ -1,0 +1,21 @@
+Single-trajectory endpoint MM/PB(GB)SA for SGLT2
+&general
+  startframe=1, endframe=100, interval=1,
+  keep_files=0, use_sander=1, verbose=1,
+/
+&gb
+  igb=5, saltcon=0.1500,
+/
+&pb
+  radiopt=0,
+  indi=4.0000, exdi=80.0,
+  istrng=0.1500,
+  fillratio=1.25, inp=2,
+  sasopt=0, solvopt=2, ipb=1, bcopt=10,
+  nfocus=1, linit=1000, eneopt=1,
+  cutfd=7.0, cutnb=99.0, maxarcdot=15000, npbverb=1,
+  memopt=1,
+  emem=7.0000,
+  mctrdz=0.0,
+  mthick=40.0000, poretype=1,
+/
