@@ -5,7 +5,7 @@ the completed corrected membrane trajectories:
 
 - SGLT2/Mol_13144, replicates 1–3
 - SGLT2/Mol_13733, replicates 1–3
-- SGLT2/Mol_15088, replicate 2
+- SGLT2/Mol_15088, replicates 1–3
 - OPRK1/Mol_16614, replicates 1–3
 
 Each trajectory contains 2,000 frames spanning approximately 100 ns. Analysis
@@ -19,5 +19,4 @@ occupancies; hydrogen-bond occupancies; five exact 400-frame block summaries;
 and a 400-frame final-20-ns summary. Raw trajectories and serialized systems are
 deliberately excluded from Git.
 
-Mol_15088 replicates 1 and 3 are not included yet because their production
-trajectories were not complete locally when this analysis set was generated.
+The corrected primary set now contains all 12 completed membrane trajectories.

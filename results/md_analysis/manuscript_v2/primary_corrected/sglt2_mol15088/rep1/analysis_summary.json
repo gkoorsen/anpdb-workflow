@@ -1,0 +1,120 @@
+{
+  "run_dir": "/mnt/d/userdata/gerrit md/anpdb-workflow/md_runs/production/sglt2_mol15088/rep1",
+  "frames": 2000,
+  "atoms": 167642,
+  "chunk_size": 25,
+  "stride": 1,
+  "time_ns_final": 99.94999986769834,
+  "backbone_rmsd_A_final": 1.613800287246704,
+  "backbone_rmsd_A_mean": 1.47849702835083,
+  "backbone_rmsd_A_max": 2.1047511100769043,
+  "protein_core_rmsd_A_final": 1.0748924016952515,
+  "protein_core_rmsd_A_mean": 0.9754156470298767,
+  "protein_core_rmsd_A_max": 1.1895095109939575,
+  "ligand_atoms": 67,
+  "ligand_heavy_atoms": 39,
+  "ligand_pose_rmsd_A_final": 0.9099608659744263,
+  "ligand_pose_rmsd_A_mean": 0.8144065141677856,
+  "ligand_pose_rmsd_A_max": 1.4845998287200928,
+  "ligand_internal_rmsd_A_final": 0.5473487377166748,
+  "ligand_internal_rmsd_A_mean": 0.4973210394382477,
+  "ligand_internal_rmsd_A_max": 1.0433257818222046,
+  "ligand_geometry_qc": {
+    "bond_source": "system.xml",
+    "heavy_atom_bonds": 45,
+    "frames_with_implausible_heavy_atom_bond": 0,
+    "fraction_frames_with_implausible_heavy_atom_bond": 0.0,
+    "minimum_observed_heavy_atom_bond_A": 1.2660123109817505,
+    "maximum_observed_heavy_atom_bond_A": 1.7029712200164795,
+    "maximum_absolute_change_from_frame0_A": 0.1897355318069458,
+    "lower_distance_A": 0.8,
+    "upper_distance_A": 2.2
+  },
+  "pbc_imaging_applied": true,
+  "alignment_core": {
+    "requested_mode": "auto",
+    "effective_mode": "membrane-core-ca",
+    "definition": "frame-0 alpha-helical protein C-alpha atoms with z coordinate within 1.50 nm of the lipid-center z",
+    "atom_count": 299,
+    "residue_count": 299,
+    "membrane_center_z_nm": 4.599181652069092,
+    "membrane_core_half_thickness_nm": 1.5
+  },
+  "contact_cutoff_nm": 0.4,
+  "n_contact_residues": 34,
+  "ligand_com_displacement_A_final": 0.626029304574484,
+  "ligand_com_displacement_A_mean": 0.4996959726261782,
+  "ligand_pocket_com_distance_A_mean": 0.6249937829539173,
+  "protein_ligand_min_heavy_distance_A_mean": 2.556019819751382,
+  "contact_atoms_4A_mean": 58.9905,
+  "contact_atoms_6A_mean": 185.8885,
+  "contact_atoms_8A_mean": 362.089,
+  "initial_contact_residue_fraction_4A_mean": 0.8644375,
+  "ligand_z_from_membrane_center_A_mean": 9.427344028885436,
+  "ligand_protein_hbonds_occupancy_ge_0p2": 11,
+  "thermodynamic_qc": {
+    "records": 2000,
+    "available_fields": [
+      "step",
+      "time_ps",
+      "elapsed_time_ns",
+      "potential_energy_kJ_mol",
+      "kinetic_energy_kJ_mol",
+      "total_energy_kJ_mol",
+      "temperature_K",
+      "volume_nm3",
+      "density_g_mL",
+      "speed_ns_day"
+    ],
+    "instantaneous_pressure_timeseries_available": false,
+    "barostat": {
+      "configured": true,
+      "target_pressure_atm": 1.0,
+      "interval_steps": 25
+    },
+    "metrics": {
+      "potential_energy_kJ_mol": {
+        "mean": -1791980.0804750733,
+        "sd": 1548.2157851089637,
+        "min": -1797137.6684524473,
+        "max": -1786451.520751306,
+        "linear_slope_per_ns": -12.27613492322344
+      },
+      "kinetic_energy_kJ_mol": {
+        "mean": 470180.0230291321,
+        "sd": 1133.933853510791,
+        "min": 466265.6951772165,
+        "max": 473848.059190044,
+        "linear_slope_per_ns": -0.48498966277494693
+      },
+      "total_energy_kJ_mol": {
+        "mean": -1321800.0574459413,
+        "sd": 1930.7895544092241,
+        "min": -1327960.5202809768,
+        "max": -1314513.559095568,
+        "linear_slope_per_ns": -12.761124586014985
+      },
+      "temperature_K": {
+        "mean": 310.24959285328134,
+        "sd": 0.74822939968353,
+        "min": 307.66671275870146,
+        "max": 312.66995669214134,
+        "linear_slope_per_ns": -0.00032002177473979817
+      },
+      "volume_nm3": {
+        "mean": 1622.4669943311383,
+        "sd": 1.9800675602717241,
+        "min": 1616.093145650963,
+        "max": 1628.9641346046924,
+        "linear_slope_per_ns": -0.009985554868940445
+      },
+      "density_g_mL": {
+        "mean": 1.0227478584055398,
+        "sd": 0.0012481257854975942,
+        "min": 1.0186671016269138,
+        "max": 1.0267800331419386,
+        "linear_slope_per_ns": 6.294731282598885e-06
+      }
+    }
+  }
+}
